@@ -49,6 +49,11 @@ class AdMobPlugin(godot: Godot) : GodotPlugin(godot) {
     }
 
     @UsedByGodot
+    fun init(appId: String) {
+        initialize(appId, true)
+    }
+
+    @UsedByGodot
     fun load_interstitial(adUnitId: String) {
         val activity: Activity = activity ?: run {
             Log.e(TAG, "load_interstitial: activity is null")
@@ -75,6 +80,11 @@ class AdMobPlugin(godot: Godot) : GodotPlugin(godot) {
                 }
             )
         }
+    }
+
+    @UsedByGodot
+    fun loadInterstitial(adUnitId: String) {
+        load_interstitial(adUnitId)
     }
 
     @UsedByGodot
@@ -107,7 +117,17 @@ class AdMobPlugin(godot: Godot) : GodotPlugin(godot) {
     }
 
     @UsedByGodot
+    fun showInterstitial(): Boolean {
+        return show_interstitial()
+    }
+
+    @UsedByGodot
     fun is_interstitial_loaded(): Boolean {
         return interstitialAd != null
+    }
+
+    @UsedByGodot
+    fun isInterstitialLoaded(): Boolean {
+        return is_interstitial_loaded()
     }
 }

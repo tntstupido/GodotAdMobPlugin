@@ -157,3 +157,20 @@ Za produkciju zamijeniti sa pravim ID-ovima i postaviti `TEST_MODE = false`.
 - `emitSignal("naziv")` se poziva iz Kotlin koda za slanje signala u GDScript
 - AAR fajlovi u `godot/addons/admob_plugin/` su buildovani artefakti — regenerisati ih ako se mijenja Kotlin kod
 - `local.properties` nije u git-u (sadrži lokalne putanje)
+
+---
+
+## Release Notes
+
+- Latest fixes are tracked in `CHANGELOG.md`.
+- Current stable release: **v1.1.0**.
+
+### Build tip (if `./gradlew` fails with wrapper manifest error)
+
+Use wrapper main class directly:
+
+```bash
+export JAVA_HOME=/opt/jdk-17
+export PATH="$JAVA_HOME/bin:$PATH"
+java -classpath gradle/wrapper/gradle-wrapper.jar org.gradle.wrapper.GradleWrapperMain :admobplugin:assembleDebug :admobplugin:assembleRelease
+```
