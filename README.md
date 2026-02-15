@@ -1,22 +1,22 @@
-# AdMob Plugin za Godot 4 (Android)
+# AdMob Plugin for Godot 4 (Android)
 
-Nativni Android plugin koji izlaže AdMob interstitial reklame GDScript-u.
-Testiran sa Godot 4.5.1 i play-services-ads 24.1.0.
+Native Android plugin that exposes AdMob interstitial ads to GDScript.
+Tested with Godot 4.5.1 and play-services-ads 24.1.0.
 
 ---
 
-## Struktura projekta
+## Project Structure
 
 ```
 AdMobPlugin/
-├── README.md                          # ovaj fajl
-├── AdMob_Android_Plugin_Guide.md      # detaljan vodič korak-po-korak
+├── README.md                          # this file
+├── CHANGELOG.md                       # version history
 │
-├── android/                           # Android Studio / Gradle projekt
+├── android/                           # Android Studio / Gradle project
 │   ├── settings.gradle.kts
 │   ├── build.gradle.kts
 │   ├── gradle.properties
-│   ├── local.properties               # sdk.dir (ne commitovati u git)
+│   ├── local.properties               # sdk.dir (do not commit to git)
 │   └── admobplugin/
 │       ├── build.gradle.kts
 │       ├── libs/
@@ -24,52 +24,51 @@ AdMobPlugin/
 │       └── src/main/
 │           ├── AndroidManifest.xml
 │           └── java/com/yourcompany/admobplugin/
-│               └── AdMobPlugin.kt     # Kotlin plugin klasa
+│               └── AdMobPlugin.kt     # Kotlin plugin class
 │
-└── godot/                             # kopirati u Godot projekt
+└── godot/                             # copy into your Godot project
     ├── addons/admob_plugin/
     │   ├── plugin.cfg                 # Godot plugin metadata
     │   ├── admob_plugin.gd            # EditorExportPlugin (GDScript)
-    │   ├── AdMobPlugin-debug.aar      # buildovani AAR (debug)
-    │   └── AdMobPlugin-release.aar    # buildovani AAR (release)
+    │   ├── AdMobPlugin-debug.aar      # built AAR (debug)
+    │   └── AdMobPlugin-release.aar    # built AAR (release)
     └── autoload/
-        └── AdManager.gd              # singleton za korištenje u igri
+        └── AdManager.gd              # singleton for use in game scenes
 ```
 
 ---
 
-## Brzi start
+## Quick Start
 
-### 1. Build AAR (jednom, ili kad mijenjaš Kotlin kod)
+### 1. Build the AAR (once, or whenever you change Kotlin code)
 
 ```bash
-# Potrebno: JDK 17, Android SDK, internet (za preuzimanje dependencija)
+# Requirements: JDK 17, Android SDK, internet (for downloading dependencies)
 cd android
-# Koristi Gradle 8.7+ ili wrapper ako ga imaš
+# Use Gradle 8.7+ or the wrapper if available
 gradle :admobplugin:assembleDebug :admobplugin:assembleRelease
 ```
 
-Output AAR fajlovi se automatski kopiraju u `godot/addons/admob_plugin/` —
-ili kopiraj ručno:
+Then copy the output AAR files manually:
 
 ```bash
 cp android/admobplugin/build/outputs/aar/admobplugin-debug.aar   godot/addons/admob_plugin/AdMobPlugin-debug.aar
 cp android/admobplugin/build/outputs/aar/admobplugin-release.aar  godot/addons/admob_plugin/AdMobPlugin-release.aar
 ```
 
-### 2. Kopiraj u Godot projekt
+### 2. Copy into your Godot project
 
 ```bash
-cp -r godot/addons/admob_plugin/  <tvoj_godot_projekat>/addons/admob_plugin/
-cp    godot/autoload/AdManager.gd  <tvoj_godot_projekat>/autoload/AdManager.gd
+cp -r godot/addons/admob_plugin/  <your_godot_project>/addons/admob_plugin/
+cp    godot/autoload/AdManager.gd  <your_godot_project>/autoload/AdManager.gd
 ```
 
-### 3. Aktiviraj u Godotu
+### 3. Enable in Godot
 
-- **Project → Project Settings → Plugins** → uključi `AdMobPlugin`
-- **Project → Project Settings → Autoload** → dodaj `res://autoload/AdManager.gd` kao `AdManager`
+- **Project → Project Settings → Plugins** → enable `AdMobPlugin`
+- **Project → Project Settings → Autoload** → add `res://autoload/AdManager.gd` as `AdManager`
 
-### 4. Koristi u GDScript-u
+### 4. Use in GDScript
 
 ```gdscript
 func _ready() -> void:
@@ -83,47 +82,47 @@ func _on_ad_ready() -> void:
 
 ---
 
-## API referenca
+## API Reference
 
 ### AdManager (autoload singleton)
 
-| Metoda | Opis |
-|--------|------|
-| `initialize()` | Inicijalizuje AdMob SDK. Pozovi jednom na startu. |
-| `load_interstitial()` | Počinje učitavanje interstitial reklame. |
-| `show_interstitial() -> bool` | Prikazuje reklamu ako je učitana. Vraća `true` ako je pokazana. |
-| `is_interstitial_loaded() -> bool` | Provjera da li je reklama spremna. |
+| Method | Description |
+|--------|-------------|
+| `initialize()` | Initializes the AdMob SDK. Call once at game start. |
+| `load_interstitial()` | Starts loading an interstitial ad. |
+| `show_interstitial() -> bool` | Shows the ad if loaded. Returns `true` if shown. |
+| `is_interstitial_loaded() -> bool` | Returns whether an ad is ready to show. |
 
-### Signali
+### Signals
 
-| Signal | Opis |
-|--------|------|
-| `initialized` | SDK je spreman. |
-| `interstitial_loaded` | Reklama učitana, može se prikazati. |
-| `interstitial_closed` | Korisnik zatvorio reklamu. Sljedeća se automatski počinje učitavati. |
-| `interstitial_failed_to_load` | Greška pri učitavanju (nema mreže, pogrešan ID itd.) |
-| `interstitial_show_failed` | Greška pri prikazivanju. |
+| Signal | Description |
+|--------|-------------|
+| `initialized` | SDK is ready. |
+| `interstitial_loaded` | Ad loaded and ready to show. |
+| `interstitial_closed` | User dismissed the ad. Next ad starts loading automatically. |
+| `interstitial_failed_to_load` | Load error (no network, wrong ID, etc.) |
+| `interstitial_show_failed` | Error while showing the ad. |
 
 ---
 
-## Test ID-ovi (Google)
+## Test IDs (Google)
 
-Koristiti **isključivo** za razvoj i testiranje:
+Use these **only** during development and testing:
 
 ```
 App ID:            ca-app-pub-3940256099942544~3347511713
 Interstitial ID:   ca-app-pub-3940256099942544/1033173712
 ```
 
-Nalaze se u `godot/autoload/AdManager.gd` kao konstante `APP_ID` i `INTERSTITIAL_ID`.
-Za produkciju zamijeniti sa pravim ID-ovima i postaviti `TEST_MODE = false`.
+They are defined in `godot/autoload/AdManager.gd` as `APP_ID` and `INTERSTITIAL_ID`.
+For production, replace them with your real IDs and set `TEST_MODE = false`.
 
 ---
 
-## Verzije i dependencije
+## Versions & Dependencies
 
-| Komponenta | Verzija |
-|------------|---------|
+| Component | Version |
+|-----------|---------|
 | Godot | 4.5.1 stable |
 | Kotlin | 2.1.0 |
 | Android Gradle Plugin | 8.3.0 |
@@ -135,39 +134,34 @@ Za produkciju zamijeniti sa pravim ID-ovima i postaviti `TEST_MODE = false`.
 
 ---
 
-## Česte greške
+## Troubleshooting
 
-| Problem | Uzrok | Rješenje |
+| Problem | Cause | Solution |
 |---------|-------|----------|
-| `Engine.has_singleton("AdMobPlugin") == false` | AAR nedostaje ili pogrešan naziv klase | Provjeri da su oba AAR-a u `addons/admob_plugin/` i da je plugin aktiviran |
-| Build greška: `SDK location not found` | Nedostaje `local.properties` | Kreiraj `android/local.properties` sa `sdk.dir=/putanja/do/Android/Sdk` |
-| Build greška: Kotlin metadata version | Pogrešna Kotlin verzija | Godot 4.5.1 zahtijeva Kotlin 2.1.0 |
-| Reklama se ne prikazuje | `show_interstitial()` pozvan prije `interstitial_loaded` signala | Sačekaj signal, ne pozivaj show odmah nakon load |
-| App se ruši pri prikazivanju | Activity null ili callback nije postavljen | Provjeri da se show poziva na UI threadu (rješeno u pluginu) |
+| `Engine.has_singleton("AdMobPlugin") == false` | AAR missing or wrong class name | Check both AARs are in `addons/admob_plugin/` and plugin is enabled |
+| Build error: `SDK location not found` | Missing `local.properties` | Create `android/local.properties` with `sdk.dir=/path/to/Android/Sdk` |
+| Build error: Kotlin metadata version | Wrong Kotlin version | Godot 4.5.1 requires Kotlin 2.1.0 |
+| Ad does not show | `show_interstitial()` called before `interstitial_loaded` signal | Wait for the signal before calling show |
+| App crashes on show | Activity null or callback not set | Ensure show is called on the UI thread (already handled in the plugin) |
 
 ---
 
-## Napomene za AI asistente
+## Notes for AI Assistants
 
-- Plugin klasa: `android/admobplugin/src/main/java/com/yourcompany/admobplugin/AdMobPlugin.kt`
+- Plugin class: `android/admobplugin/src/main/java/com/yourcompany/admobplugin/AdMobPlugin.kt`
 - Export plugin: `godot/addons/admob_plugin/admob_plugin.gd`
 - Autoload singleton: `godot/autoload/AdManager.gd`
-- Godot plugin API koristi `GodotPlugin` baznu klasu i `@UsedByGodot` anotaciju za izlaganje metoda
-- Signali se registruju kroz `getPluginSignals()` koja vraća `Set<SignalInfo>` (ne `Set<String>`)
-- `emitSignal("naziv")` se poziva iz Kotlin koda za slanje signala u GDScript
-- AAR fajlovi u `godot/addons/admob_plugin/` su buildovani artefakti — regenerisati ih ako se mijenja Kotlin kod
-- `local.properties` nije u git-u (sadrži lokalne putanje)
+- Godot plugin API uses the `GodotPlugin` base class and `@UsedByGodot` annotation to expose methods
+- Signals are registered via `getPluginSignals()` which returns `Set<SignalInfo>` (not `Set<String>`)
+- `emitSignal("name")` is called from Kotlin to send signals to GDScript
+- AAR files in `godot/addons/admob_plugin/` are built artifacts — regenerate them if Kotlin code changes
+- `local.properties` is not tracked in git (contains local SDK path)
 
 ---
 
-## Release Notes
+## Build Tip (if Gradle wrapper fails)
 
-- Latest fixes are tracked in `CHANGELOG.md`.
-- Current stable release: **v1.1.0**.
-
-### Build tip (if `./gradlew` fails with wrapper manifest error)
-
-Use wrapper main class directly:
+Run the wrapper main class directly:
 
 ```bash
 export JAVA_HOME=/opt/jdk-17
