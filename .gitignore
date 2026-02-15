@@ -1,0 +1,23 @@
+# Godot engine AAR (96 MB) — preuzeti zasebno, vidi android/admobplugin/libs/README.md
+android/admobplugin/libs/*.aar
+
+# Android build output
+android/admobplugin/build/
+android/.gradle/
+android/local.properties
+
+# Gradle wrapper JAR (preuzeti lokalno, ne commitovati)
+android/gradle/wrapper/gradle-wrapper.jar
+
+# Godot editor/cache
+godot/.godot/
+godot/**/.import/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# IDE
+.idea/
+*.iml
+.vscode/
