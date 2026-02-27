@@ -1,5 +1,32 @@
 # Changelog
 
+## v1.2.0 - 2026-02-27
+
+### Added
+- Added rewarded ad support in the Android plugin (`AdMobPlugin.kt`):
+  - New load/show APIs:
+    - `load_rewarded(adUnitId)`
+    - `show_rewarded()`
+    - `is_rewarded_loaded()`
+  - CamelCase compatibility wrappers:
+    - `loadRewarded(adUnitId)`
+    - `showRewarded()`
+    - `isRewardedLoaded()`
+  - New rewarded signals:
+    - `rewarded_loaded`
+    - `rewarded_closed`
+    - `rewarded_earned`
+    - `rewarded_failed_to_load`
+    - `rewarded_show_failed`
+
+### Changed
+- Replaced the unused `isInitialized` field with rewarded ad state tracking (`rewardedAd`).
+- Standardized local activity handling to `currentActivity` in initialization and interstitial flows for consistency.
+
+### Packaging
+- Added an untracked distribution archive in the repository root:
+  - `AdMobPlugin-v1.1.0-addons.zip`
+
 ## v1.1.0 - 2026-02-15
 
 ### Fixed

@@ -5,9 +5,15 @@ signal interstitial_loaded
 signal interstitial_closed
 signal interstitial_failed_to_load
 signal interstitial_show_failed
+signal rewarded_loaded
+signal rewarded_closed
+signal rewarded_earned
+signal rewarded_failed_to_load
+signal rewarded_show_failed
 
 const APP_ID := "ca-app-pub-3940256099942544~3347511713"
 const INTERSTITIAL_ID := "ca-app-pub-3940256099942544/1033173712"
+const REWARDED_ID := "ca-app-pub-3940256099942544/5224354917"
 const TEST_MODE := true
 
 const SINGLETON_CANDIDATES := ["AdMobPlugin", "admobplugin", "AdMob", "GodotAdMob"]
@@ -34,6 +40,11 @@ func _ready() -> void:
 	_try_connect("interstitial_closed", _on_interstitial_closed)
 	_try_connect("interstitial_failed_to_load", _on_interstitial_failed_to_load)
 	_try_connect("interstitial_show_failed", _on_interstitial_show_failed)
+	_try_connect("rewarded_loaded", _on_rewarded_loaded)
+	_try_connect("rewarded_closed", _on_rewarded_closed)
+	_try_connect("rewarded_earned", _on_rewarded_earned)
+	_try_connect("rewarded_failed_to_load", _on_rewarded_failed_to_load)
+	_try_connect("rewarded_show_failed", _on_rewarded_show_failed)
 
 func initialize() -> void:
 	if _plugin == null:
@@ -71,6 +82,33 @@ func is_interstitial_loaded() -> bool:
 		return bool(_plugin.call("isInterstitialLoaded"))
 	return false
 
+func load_rewarded() -> void:
+	if _plugin == null:
+		return
+	if _plugin.has_method("load_rewarded"):
+		_plugin.call("load_rewarded", REWARDED_ID)
+		return
+	if _plugin.has_method("loadRewarded"):
+		_plugin.call("loadRewarded", REWARDED_ID)
+
+func show_rewarded() -> bool:
+	if _plugin == null:
+		return false
+	if _plugin.has_method("show_rewarded"):
+		return bool(_plugin.call("show_rewarded"))
+	if _plugin.has_method("showRewarded"):
+		return bool(_plugin.call("showRewarded"))
+	return false
+
+func is_rewarded_loaded() -> bool:
+	if _plugin == null:
+		return false
+	if _plugin.has_method("is_rewarded_loaded"):
+		return bool(_plugin.call("is_rewarded_loaded"))
+	if _plugin.has_method("isRewardedLoaded"):
+		return bool(_plugin.call("isRewardedLoaded"))
+	return false
+
 func _try_connect(signal_name: String, callback: Callable) -> void:
 	if _plugin == null:
 		return
@@ -95,3 +133,19 @@ func _on_interstitial_failed_to_load() -> void:
 
 func _on_interstitial_show_failed() -> void:
 	emit_signal("interstitial_show_failed")
+
+func _on_rewarded_loaded() -> void:
+	emit_signal("rewarded_loaded")
+
+func _on_rewarded_closed() -> void:
+	emit_signal("rewarded_closed")
+	load_rewarded()
+
+func _on_rewarded_earned() -> void:
+	emit_signal("rewarded_earned")
+
+func _on_rewarded_failed_to_load() -> void:
+	emit_signal("rewarded_failed_to_load")
+
+func _on_rewarded_show_failed() -> void:
+	emit_signal("rewarded_show_failed")
