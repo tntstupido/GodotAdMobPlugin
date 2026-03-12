@@ -6,6 +6,17 @@ Tested Android target: Godot 4.5.1 and play-services-ads 24.1.0.
 
 ---
 
+## Release
+
+- Latest packaged release: `v1.3.0`
+- GitHub release: `https://github.com/tntstupido/GodotAdMobPlugin/releases/tag/v1.3.0`
+- Direct download: `https://github.com/tntstupido/GodotAdMobPlugin/releases/download/v1.3.0/AdMobPlugin-v1.3.0-addons.zip`
+- The release zip contains:
+  - Android runtime payload under `addons/admob_plugin/`
+  - iOS runtime payload under `ios/plugins/admob_plugin/`
+
+---
+
 ## Project Structure
 
 ```
