@@ -1,5 +1,46 @@
 # Changelog
 
+## v1.3.1 - 2026-03-12
+
+### Documentation
+- Updated README status to reflect current iOS payload reality:
+  - `AdMobPlugin` debug/release xcframeworks included
+  - `GoogleMobileAds.xcframework` and `UserMessagingPlatform.xcframework` included
+- Expanded README API reference with current iOS UMP methods and consent signals.
+- Added explicit scope-boundary note:
+  - iOS IAP (StoreKit) and iOS Game Center integrations are separate plugin/workstream responsibilities outside this AdMob plugin.
+
+## v1.3.0 - 2026-03-12
+
+### Added
+- Added platform-specific ProjectSettings defaults in the Godot export plugin:
+  - `admob/android/app_id`
+  - `admob/android/interstitial_id`
+  - `admob/android/rewarded_id`
+  - `admob/ios/app_id`
+  - `admob/ios/interstitial_id`
+  - `admob/ios/rewarded_id`
+  - `admob/ios/att_message`
+- Added iOS-oriented helper methods to `AdManager.gd`:
+  - `request_tracking_authorization()`
+  - `get_tracking_authorization_status()`
+- Added Godot iOS plugin distribution scaffolding:
+  - `ios/plugins/admob_plugin/admob_plugin.gdip`
+  - `ios/plugins/admob_plugin/README.md`
+  - `scripts/package_release.sh`
+- Added native iOS source scaffolding for the AdMob plugin:
+  - `ios/native/AdMobPlugin/src/admob_plugin.h`
+  - `ios/native/AdMobPlugin/src/admob_plugin.mm`
+  - `ios/native/AdMobPlugin/src/admob_plugin_bootstrap.h`
+  - `ios/native/AdMobPlugin/src/admob_plugin_bootstrap.mm`
+  - `ios/native/AdMobPlugin/scripts/build_xcframework.sh`
+  - `ios/native/AdMobPlugin/README.md`
+
+### Changed
+- Updated `AdManager.gd` to resolve app/ad unit IDs by active platform while preserving legacy fallback for `admob/app_id`.
+- Expanded the Godot addon metadata to describe Android + iOS-facing support at the API/config layer.
+- Updated README to document the new iOS plugin folder layout, release packaging flow, and remaining native xcframework gap.
+
 ## v1.2.0 - 2026-02-27
 
 ### Added

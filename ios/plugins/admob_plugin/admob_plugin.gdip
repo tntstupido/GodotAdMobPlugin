@@ -1,0 +1,29 @@
+[config]
+name="AdMobPlugin"
+binary="AdMobPlugin.xcframework"
+use_swift_runtime=true
+initialization="init_admob_plugin"
+deinitialization="deinit_admob_plugin"
+
+[dependencies]
+linked=[]
+embedded=[
+	"GoogleMobileAds.xcframework",
+	"UserMessagingPlatform.xcframework"
+]
+system=[
+	"AdSupport.framework",
+	"AppTrackingTransparency.framework",
+	"Foundation.framework",
+	"JavaScriptCore.framework",
+	"StoreKit.framework",
+	"UIKit.framework"
+]
+files=[]
+linker_flags=[
+	"-ObjC"
+]
+
+[plist]
+GADApplicationIdentifier:string_input="ca-app-pub-3940256099942544~3347511713"
+NSUserTrackingUsageDescription:string_input="This identifier will be used to deliver more relevant ads to you."

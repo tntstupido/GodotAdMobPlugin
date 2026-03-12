@@ -1,7 +1,8 @@
-# AdMob Plugin for Godot 4 (Android)
+# AdMob Plugin for Godot 4
 
 Native Android plugin that exposes AdMob interstitial and rewarded ads to GDScript.
-Tested with Godot 4.5.1 and play-services-ads 24.1.0.
+The Godot-facing layer now includes platform-specific settings and iOS ATT helper hooks, and the repository includes a Godot iOS plugin descriptor scaffold under `ios/plugins/`.
+Tested Android target: Godot 4.5.1 and play-services-ads 24.1.0.
 
 ---
 
@@ -11,6 +12,16 @@ Tested with Godot 4.5.1 and play-services-ads 24.1.0.
 AdMobPlugin/
 ├── README.md                          # this file
 ├── CHANGELOG.md                       # version history
+├── ios/
+│   ├── native/
+│   │   └── AdMobPlugin/
+│   │       ├── src/                   # Objective-C++ Godot/iOS bridge scaffold
+│   │       ├── scripts/               # xcframework build script
+│   │       └── README.md              # native build expectations
+│   └── plugins/
+│       └── admob_plugin/
+│           ├── admob_plugin.gdip      # Godot iOS plugin descriptor
+│           └── README.md              # expected iOS payload layout
 │
 ├── android/                           # Android Studio / Gradle project
 │   ├── settings.gradle.kts
@@ -26,7 +37,7 @@ AdMobPlugin/
 │           └── java/com/yourcompany/admobplugin/
 │               └── AdMobPlugin.kt     # Kotlin plugin class
 │
-└── godot/                             # copy into your Godot project
+├── godot/                             # copy into your Godot project
     ├── addons/admob_plugin/
     │   ├── plugin.cfg                 # Godot plugin metadata
     │   ├── admob_plugin.gd            # EditorExportPlugin (GDScript)
@@ -34,7 +45,26 @@ AdMobPlugin/
     │   └── AdMobPlugin-release.aar    # built AAR (release)
     └── autoload/
         └── AdManager.gd              # singleton for use in game scenes
+└── scripts/
+    └── package_release.sh             # release zip builder
 ```
+
+---
+
+## Status
+
+- Android export/runtime support is implemented and packaged in this repository.
+- iOS payload is implemented and included under [ios/plugins/admob_plugin](/Users/mladen/Documents/Plugins/GodotAdMobPlugin/ios/plugins/admob_plugin):
+  - `AdMobPlugin.debug.xcframework`
+  - `AdMobPlugin.release.xcframework`
+  - `GoogleMobileAds.xcframework`
+  - `UserMessagingPlatform.xcframework`
+  - `admob_plugin.gdip`
+- iOS consent stack support is now present:
+  - UMP helpers exposed to GDScript
+  - ATT helpers exposed to GDScript
+  - ATT prompt is manual-only (not auto-triggered by ad loading)
+- Native iOS source and build workflow remain under [ios/native/AdMobPlugin](/Users/mladen/Documents/Plugins/GodotAdMobPlugin/ios/native/AdMobPlugin).
 
 ---
 
@@ -61,14 +91,55 @@ cp android/admobplugin/build/outputs/aar/admobplugin-release.aar  godot/addons/a
 ```bash
 cp -r godot/addons/admob_plugin/  <your_godot_project>/addons/admob_plugin/
 cp    godot/autoload/AdManager.gd  <your_godot_project>/autoload/AdManager.gd
+cp -r ios/plugins/                 <your_godot_project>/ios/plugins/
 ```
 
-### 3. Enable in Godot
+### 3. iOS plugin payload
+
+Godot 4 detects iOS plugins from `.gdip` files inside `res://ios/plugins`. This repository now includes [admob_plugin.gdip](/Users/mladen/Documents/Plugins/GodotAdMobPlugin/ios/plugins/admob_plugin/admob_plugin.gdip), which declares:
+
+- singleton name `AdMobPlugin`
+- plugin binary basename `AdMobPlugin.xcframework`
+- embedded dependencies:
+  - `GoogleMobileAds.xcframework`
+  - `UserMessagingPlatform.xcframework`
+- Info.plist keys `GADApplicationIdentifier` and `NSUserTrackingUsageDescription`
+
+The iOS runtime payload is present in this repository and should be synced into the consuming Godot project under `res://ios/plugins/admob_plugin/`.
+
+Native source code for that bridge now lives in [ios/native/AdMobPlugin](/Users/mladen/Documents/Plugins/GodotAdMobPlugin/ios/native/AdMobPlugin).
+
+### 3.1 iOS post-export patch step
+
+Current verified workflow for a Godot iOS export that uses this plugin:
+
+1. Export the iOS/Xcode project from Godot.
+2. Run:
+
+```bash
+python3 scripts/patch_ios_export_xcode_project.py <exported_ios_project_dir>
+```
+
+For example:
+
+```bash
+python3 scripts/patch_ios_export_xcode_project.py /Users/mladen/Documents/GodotProjects/die_laughing_export
+```
+
+This currently patches the generated Xcode project to:
+
+- compile the existing `dummy.swift`
+- enable Swift standard library embedding
+- link `JavaScriptCore.framework`
+
+The script is idempotent and can be rerun safely after each fresh export.
+
+### 4. Enable in Godot
 
 - **Project → Project Settings → Plugins** → enable `AdMobPlugin`
 - **Project → Project Settings → Autoload** → add `res://autoload/AdManager.gd` as `AdManager`
 
-### 4. Use in GDScript
+### 5. Use in GDScript
 
 ```gdscript
 func _ready() -> void:
@@ -106,6 +177,14 @@ func _on_rewarded_earned() -> void:
 | `load_rewarded()` | Starts loading a rewarded ad. |
 | `show_rewarded() -> bool` | Shows a rewarded ad if loaded. Returns `true` if shown. |
 | `is_rewarded_loaded() -> bool` | Returns whether a rewarded ad is ready to show. |
+| `request_tracking_authorization()` | Calls into the native ATT prompt helper when the active platform plugin exposes it. |
+| `get_tracking_authorization_status() -> int` | Returns native ATT status when exposed, otherwise `-1`. |
+| `request_consent_info_update()` | Triggers UMP consent info update on iOS when supported. |
+| `can_request_ads() -> bool` | Returns UMP ad-request eligibility state on iOS when supported. |
+| `is_consent_form_available() -> bool` | Returns whether a UMP consent form is available on iOS when supported. |
+| `show_consent_form_if_required()` | Requests UMP consent form presentation on iOS when required. |
+| `get_consent_status() -> int` | Returns UMP consent status value on iOS when supported. |
+| `get_privacy_options_requirement_status() -> int` | Returns UMP privacy-options requirement status on iOS when supported. |
 
 ### AdMobPlugin (native singleton methods)
 
@@ -118,6 +197,14 @@ func _on_rewarded_earned() -> void:
 | `load_rewarded(adUnitId)` / `loadRewarded(adUnitId)` | Loads a rewarded ad. |
 | `show_rewarded() -> bool` / `showRewarded() -> bool` | Shows a rewarded ad if loaded. |
 | `is_rewarded_loaded() -> bool` / `isRewardedLoaded() -> bool` | Returns rewarded loaded state. |
+| `request_tracking_authorization()` / `requestTrackingAuthorization()` | iOS ATT authorization request helper. |
+| `get_tracking_authorization_status() -> int` / `getTrackingAuthorizationStatus() -> int` | iOS ATT status helper. |
+| `request_consent_info_update()` / `requestConsentInfoUpdate()` | iOS UMP consent info update helper. |
+| `can_request_ads() -> bool` / `canRequestAds() -> bool` | iOS UMP ad-request eligibility helper. |
+| `is_consent_form_available() -> bool` / `isConsentFormAvailable() -> bool` | iOS UMP consent form availability helper. |
+| `show_consent_form_if_required()` / `showConsentFormIfRequired()` | iOS UMP consent form presentation helper. |
+| `get_consent_status() -> int` / `getConsentStatus() -> int` | iOS UMP consent status helper. |
+| `get_privacy_options_requirement_status() -> int` / `getPrivacyOptionsRequirementStatus() -> int` | iOS UMP privacy options requirement helper. |
 
 ### AdManager Signals (autoload)
 
@@ -148,6 +235,11 @@ func _on_rewarded_earned() -> void:
 | `rewarded_earned` | User earned reward callback fired. |
 | `rewarded_failed_to_load` | Rewarded ad load failed. |
 | `rewarded_show_failed` | Rewarded ad show failed. |
+| `consent_info_updated` | iOS UMP consent info update callback. |
+| `consent_form_shown` | iOS UMP consent form shown callback. |
+| `consent_form_dismissed` | iOS UMP consent form dismissed callback. |
+| `consent_flow_finished` | iOS UMP consent flow finished callback. |
+| `consent_error` | iOS UMP consent flow error callback. |
 
 ---
 
@@ -161,8 +253,18 @@ Interstitial ID:   ca-app-pub-3940256099942544/1033173712
 Rewarded ID:       ca-app-pub-3940256099942544/5224354917
 ```
 
-`APP_ID`, `INTERSTITIAL_ID`, and `REWARDED_ID` are defined in `godot/autoload/AdManager.gd`.
-For production, replace them with your real IDs and set `TEST_MODE = false`.
+At runtime, `AdManager` resolves IDs from ProjectSettings first:
+
+- `admob/android/app_id`
+- `admob/android/interstitial_id`
+- `admob/android/rewarded_id`
+- `admob/ios/app_id`
+- `admob/ios/interstitial_id`
+- `admob/ios/rewarded_id`
+- `admob/ios/att_message`
+
+Legacy fallback remains enabled for `admob/app_id`.
+If no settings are configured, the hardcoded Google test IDs in [AdManager.gd](/Users/mladen/Documents/Plugins/GodotAdMobPlugin/godot/autoload/AdManager.gd) are used.
 
 ---
 
@@ -178,6 +280,22 @@ For production, replace them with your real IDs and set `TEST_MODE = false`.
 | compileSdk | 35 |
 | minSdk | 21 (Android 5.0+) |
 | JDK | 17 |
+| iOS plugin descriptor | Included |
+| iOS native source scaffold | Included |
+| iOS native xcframeworks | Included |
+
+---
+
+## Scope Boundaries
+
+This repository/plugin covers AdMob + ATT + UMP only.
+
+Planned integrations such as:
+
+- iOS IAP plugin integration (StoreKit)
+- iOS Game Center plugin integration
+
+should be implemented as separate plugins/workstreams in the consuming game project and coordinated there at the product roadmap level.
 
 ---
 

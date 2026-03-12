@@ -11,6 +11,14 @@ signal rewarded_earned
 signal rewarded_failed_to_load
 signal rewarded_show_failed
 
+const LEGACY_APP_ID_SETTING := "admob/app_id"
+const ANDROID_APP_ID_SETTING := "admob/android/app_id"
+const IOS_APP_ID_SETTING := "admob/ios/app_id"
+const ANDROID_INTERSTITIAL_ID_SETTING := "admob/android/interstitial_id"
+const IOS_INTERSTITIAL_ID_SETTING := "admob/ios/interstitial_id"
+const ANDROID_REWARDED_ID_SETTING := "admob/android/rewarded_id"
+const IOS_REWARDED_ID_SETTING := "admob/ios/rewarded_id"
+
 const APP_ID := "ca-app-pub-3940256099942544~3347511713"
 const INTERSTITIAL_ID := "ca-app-pub-3940256099942544/1033173712"
 const REWARDED_ID := "ca-app-pub-3940256099942544/5224354917"
@@ -21,8 +29,8 @@ const SINGLETON_CANDIDATES := ["AdMobPlugin", "admobplugin", "AdMob", "GodotAdMo
 var _plugin: Object = null
 
 func _ready() -> void:
-	if OS.get_name() != "Android":
-		push_warning("AdManager: not running on Android.")
+	if not _is_supported_platform():
+		push_warning("AdManager: supported platforms are Android and iOS. Current platform: %s." % OS.get_name())
 		return
 
 	for name in SINGLETON_CANDIDATES:
@@ -49,20 +57,22 @@ func _ready() -> void:
 func initialize() -> void:
 	if _plugin == null:
 		return
+	var app_id := _get_configured_value(_get_platform_app_id_setting(), LEGACY_APP_ID_SETTING, APP_ID)
 	if _plugin.has_method("initialize"):
-		_plugin.call("initialize", APP_ID, TEST_MODE)
+		_plugin.call("initialize", app_id, TEST_MODE)
 		return
 	if _plugin.has_method("init"):
-		_plugin.call("init", APP_ID)
+		_plugin.call("init", app_id)
 
 func load_interstitial() -> void:
 	if _plugin == null:
 		return
+	var ad_unit_id := _get_configured_value(_get_platform_interstitial_setting(), "", INTERSTITIAL_ID)
 	if _plugin.has_method("load_interstitial"):
-		_plugin.call("load_interstitial", INTERSTITIAL_ID)
+		_plugin.call("load_interstitial", ad_unit_id)
 		return
 	if _plugin.has_method("loadInterstitial"):
-		_plugin.call("loadInterstitial", INTERSTITIAL_ID)
+		_plugin.call("loadInterstitial", ad_unit_id)
 
 func show_interstitial() -> bool:
 	if _plugin == null:
@@ -85,11 +95,12 @@ func is_interstitial_loaded() -> bool:
 func load_rewarded() -> void:
 	if _plugin == null:
 		return
+	var ad_unit_id := _get_configured_value(_get_platform_rewarded_setting(), "", REWARDED_ID)
 	if _plugin.has_method("load_rewarded"):
-		_plugin.call("load_rewarded", REWARDED_ID)
+		_plugin.call("load_rewarded", ad_unit_id)
 		return
 	if _plugin.has_method("loadRewarded"):
-		_plugin.call("loadRewarded", REWARDED_ID)
+		_plugin.call("loadRewarded", ad_unit_id)
 
 func show_rewarded() -> bool:
 	if _plugin == null:
@@ -109,6 +120,24 @@ func is_rewarded_loaded() -> bool:
 		return bool(_plugin.call("isRewardedLoaded"))
 	return false
 
+func request_tracking_authorization() -> void:
+	if _plugin == null:
+		return
+	if _plugin.has_method("request_tracking_authorization"):
+		_plugin.call("request_tracking_authorization")
+		return
+	if _plugin.has_method("requestTrackingAuthorization"):
+		_plugin.call("requestTrackingAuthorization")
+
+func get_tracking_authorization_status() -> int:
+	if _plugin == null:
+		return -1
+	if _plugin.has_method("get_tracking_authorization_status"):
+		return int(_plugin.call("get_tracking_authorization_status"))
+	if _plugin.has_method("getTrackingAuthorizationStatus"):
+		return int(_plugin.call("getTrackingAuthorizationStatus"))
+	return -1
+
 func _try_connect(signal_name: String, callback: Callable) -> void:
 	if _plugin == null:
 		return
@@ -117,6 +146,40 @@ func _try_connect(signal_name: String, callback: Callable) -> void:
 	if _plugin.is_connected(signal_name, callback):
 		return
 	_plugin.connect(signal_name, callback)
+
+func _is_supported_platform() -> bool:
+	return OS.get_name() == "Android" or OS.get_name() == "iOS"
+
+func _get_platform_app_id_setting() -> String:
+	if OS.get_name() == "iOS":
+		return IOS_APP_ID_SETTING
+	return ANDROID_APP_ID_SETTING
+
+func _get_platform_interstitial_setting() -> String:
+	if OS.get_name() == "iOS":
+		return IOS_INTERSTITIAL_ID_SETTING
+	return ANDROID_INTERSTITIAL_ID_SETTING
+
+func _get_platform_rewarded_setting() -> String:
+	if OS.get_name() == "iOS":
+		return IOS_REWARDED_ID_SETTING
+	return ANDROID_REWARDED_ID_SETTING
+
+func _get_configured_value(primary_setting: String, fallback_setting: String, default_value: String) -> String:
+	var primary_value := _read_setting(primary_setting)
+	if primary_value != "":
+		return primary_value
+	if fallback_setting != "":
+		var fallback_value := _read_setting(fallback_setting)
+		if fallback_value != "":
+			return fallback_value
+	return default_value
+
+func _read_setting(setting_name: String) -> String:
+	if not ProjectSettings.has_setting(setting_name):
+		return ""
+	var value := str(ProjectSettings.get_setting(setting_name))
+	return value.strip_edges()
 
 func _on_initialized() -> void:
 	emit_signal("initialized")

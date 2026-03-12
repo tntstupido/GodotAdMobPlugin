@@ -21,3 +21,11 @@ Thumbs.db
 .idea/
 *.iml
 .vscode/
+
+# Local/source-plugin build outputs and dependency caches
+build/
+ios/native/AdMobPlugin/build/
+third_party/
+
+# Local release archives
+AdMobPlugin-v*.zip
