@@ -24,7 +24,12 @@ COMMON_GODOT_INCLUDES=(
 )
 
 rm -rf "${BUILD_DIR}"
-mkdir -p "${BUILD_DIR}/iphoneos" "${BUILD_DIR}/iphonesimulator" "${OUTPUT_DIR}"
+mkdir -p \
+	"${BUILD_DIR}/debug/iphoneos" \
+	"${BUILD_DIR}/debug/iphonesimulator" \
+	"${BUILD_DIR}/release/iphoneos" \
+	"${BUILD_DIR}/release/iphonesimulator" \
+	"${OUTPUT_DIR}"
 rm -rf "${OUTPUT_DIR}/AdMobPlugin.debug.xcframework" "${OUTPUT_DIR}/AdMobPlugin.release.xcframework"
 
 build_static_lib() {
@@ -34,12 +39,13 @@ build_static_lib() {
 	local framework_slice="$4"
 	local ump_framework_slice="$5"
 	local min_flag="$6"
+	local debug_define="$7"
 
 	xcrun clang++ \
 		-std=c++17 \
 		-fobjc-arc \
 		-fobjc-weak \
-		-DDEBUG_ENABLED \
+		${debug_define:+${debug_define}} \
 		-arch "${arch}" \
 		-isysroot "${sdk_path}" \
 		"${min_flag}" \
@@ -59,7 +65,7 @@ build_static_lib() {
 		-std=c++17 \
 		-fobjc-arc \
 		-fobjc-weak \
-		-DDEBUG_ENABLED \
+		${debug_define:+${debug_define}} \
 		-arch "${arch}" \
 		-isysroot "${sdk_path}" \
 		"${min_flag}" \
@@ -81,16 +87,23 @@ build_static_lib() {
 		"${slice_dir}/admob_plugin_bootstrap.o"
 }
 
-build_static_lib "${IOS_SDK_PATH}" "arm64" "${BUILD_DIR}/iphoneos" "${IOS_FRAMEWORK_SLICE}" "${IOS_UMP_FRAMEWORK_SLICE}" "-miphoneos-version-min=13.0"
-build_static_lib "${SIM_SDK_PATH}" "arm64" "${BUILD_DIR}/iphonesimulator" "${SIM_FRAMEWORK_SLICE}" "${SIM_UMP_FRAMEWORK_SLICE}" "-mios-simulator-version-min=13.0"
+build_static_lib "${IOS_SDK_PATH}" "arm64" "${BUILD_DIR}/debug/iphoneos" "${IOS_FRAMEWORK_SLICE}" "${IOS_UMP_FRAMEWORK_SLICE}" "-miphoneos-version-min=13.0" "-DDEBUG_ENABLED"
+build_static_lib "${SIM_SDK_PATH}" "arm64" "${BUILD_DIR}/debug/iphonesimulator" "${SIM_FRAMEWORK_SLICE}" "${SIM_UMP_FRAMEWORK_SLICE}" "-mios-simulator-version-min=13.0" "-DDEBUG_ENABLED"
+build_static_lib "${IOS_SDK_PATH}" "arm64" "${BUILD_DIR}/release/iphoneos" "${IOS_FRAMEWORK_SLICE}" "${IOS_UMP_FRAMEWORK_SLICE}" "-miphoneos-version-min=13.0" ""
+build_static_lib "${SIM_SDK_PATH}" "arm64" "${BUILD_DIR}/release/iphonesimulator" "${SIM_FRAMEWORK_SLICE}" "${SIM_UMP_FRAMEWORK_SLICE}" "-mios-simulator-version-min=13.0" ""
 
 xcodebuild -create-xcframework \
-	-library "${BUILD_DIR}/iphoneos/libAdMobPlugin.a" \
+	-library "${BUILD_DIR}/debug/iphoneos/libAdMobPlugin.a" \
 	-headers "${SRC_DIR}" \
-	-library "${BUILD_DIR}/iphonesimulator/libAdMobPlugin.a" \
+	-library "${BUILD_DIR}/debug/iphonesimulator/libAdMobPlugin.a" \
 	-headers "${SRC_DIR}" \
 	-output "${OUTPUT_DIR}/AdMobPlugin.debug.xcframework"
 
-cp -R "${OUTPUT_DIR}/AdMobPlugin.debug.xcframework" "${OUTPUT_DIR}/AdMobPlugin.release.xcframework"
+xcodebuild -create-xcframework \
+	-library "${BUILD_DIR}/release/iphoneos/libAdMobPlugin.a" \
+	-headers "${SRC_DIR}" \
+	-library "${BUILD_DIR}/release/iphonesimulator/libAdMobPlugin.a" \
+	-headers "${SRC_DIR}" \
+	-output "${OUTPUT_DIR}/AdMobPlugin.release.xcframework"
 
 echo "Built xcframeworks in ${OUTPUT_DIR}"

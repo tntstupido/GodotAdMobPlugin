@@ -1,5 +1,15 @@
 # Changelog
 
+## v1.3.2 - 2026-03-13
+
+### Fixed
+- Fixed the iOS release xcframework packaging workflow:
+  - the native build script had been compiling with `-DDEBUG_ENABLED` for both debug and release outputs
+  - the script then copied the debug-built xcframework to the `AdMobPlugin.release.xcframework` name, producing a fake release payload
+  - this caused Xcode archive linker failures once the consuming project linked against `libgodot.ios.release.xcframework`
+- Fixed iOS native method-binding ABI compatibility for the shipped Godot iOS release exporter:
+  - adjusted native method registration so rebuilt release payloads now reference `ClassDB::bind_methodfi(..., const char *, ...)`
+
 ## v1.3.1 - 2026-03-12
 
 ### Fixed

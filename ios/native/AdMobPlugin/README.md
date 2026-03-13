@@ -60,4 +60,9 @@ The script outputs:
 - `ios/plugins/admob_plugin/AdMobPlugin.debug.xcframework`
 - `ios/plugins/admob_plugin/AdMobPlugin.release.xcframework`
 
+Important:
+
+- the script now builds true debug and true release xcframeworks separately
+- release builds must compile without `DEBUG_ENABLED`, otherwise Godot method binding will target the wrong ABI for `libgodot.ios.release.xcframework`
+
 You still need to place `GoogleMobileAds.xcframework` inside `ios/plugins/admob_plugin/` for Godot export packaging.
