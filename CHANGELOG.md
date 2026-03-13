@@ -2,11 +2,17 @@
 
 ## v1.3.1 - 2026-03-12
 
+### Fixed
+- Fixed the iOS UMP privacy-options settings flow:
+  - removed an overly strict native preflight check that could block `show_privacy_options_form()` even when UMP had already reported `privacy_options_requirement_status=required`
+  - the plugin now lets the native UMP SDK own final privacy-options presentation/error handling
+
 ### Documentation
 - Updated README status to reflect current iOS payload reality:
   - `AdMobPlugin` debug/release xcframeworks included
   - `GoogleMobileAds.xcframework` and `UserMessagingPlatform.xcframework` included
 - Expanded README API reference with current iOS UMP methods and consent signals.
+- Added documentation for the dedicated iOS UMP privacy-options API used by settings-driven consent review.
 - Added explicit scope-boundary note:
   - iOS IAP (StoreKit) and iOS Game Center integrations are separate plugin/workstream responsibilities outside this AdMob plugin.
 

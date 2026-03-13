@@ -80,6 +80,8 @@ Current native scope:
   - `show_consent_form_if_required()`
   - `get_consent_status()`
   - `get_privacy_options_requirement_status()`
+  - `is_privacy_options_form_available()`
+  - `show_privacy_options_form()`
 - snake_case and camelCase wrappers
 - same emitted signal names as Android:
   - `initialized`
@@ -311,6 +313,8 @@ Consider the iOS implementation complete only when all of these are true in the 
 - `Engine.has_singleton("AdMobPlugin")` is true on iOS
 - `AdManager.initialize()` emits `initialized`
 - `request_consent_info_update()` / UMP callbacks run as expected for target regions
+- `show_privacy_options_form()` works when a consuming game deliberately exposes that path and UMP reports privacy options are required
+- the native privacy-options path should not add a separate stale preflight rejection before presentation; let the UMP SDK present the form or return the authoritative error
 - `AdManager.request_tracking_authorization()` works without crash
 - `AdManager.get_tracking_authorization_status()` returns expected values
 - interstitial loads and shows

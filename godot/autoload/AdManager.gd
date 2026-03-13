@@ -10,6 +10,14 @@ signal rewarded_closed
 signal rewarded_earned
 signal rewarded_failed_to_load
 signal rewarded_show_failed
+signal consent_info_updated
+signal consent_form_shown
+signal consent_form_dismissed
+signal consent_flow_finished
+signal consent_error(message: String)
+signal privacy_options_form_shown
+signal privacy_options_form_dismissed
+signal privacy_options_form_finished
 
 const LEGACY_APP_ID_SETTING := "admob/app_id"
 const ANDROID_APP_ID_SETTING := "admob/android/app_id"
@@ -53,6 +61,14 @@ func _ready() -> void:
 	_try_connect("rewarded_earned", _on_rewarded_earned)
 	_try_connect("rewarded_failed_to_load", _on_rewarded_failed_to_load)
 	_try_connect("rewarded_show_failed", _on_rewarded_show_failed)
+	_try_connect("consent_info_updated", _on_consent_info_updated)
+	_try_connect("consent_form_shown", _on_consent_form_shown)
+	_try_connect("consent_form_dismissed", _on_consent_form_dismissed)
+	_try_connect("consent_flow_finished", _on_consent_flow_finished)
+	_try_connect("consent_error", _on_consent_error)
+	_try_connect("privacy_options_form_shown", _on_privacy_options_form_shown)
+	_try_connect("privacy_options_form_dismissed", _on_privacy_options_form_dismissed)
+	_try_connect("privacy_options_form_finished", _on_privacy_options_form_finished)
 
 func initialize() -> void:
 	if _plugin == null:
@@ -138,6 +154,78 @@ func get_tracking_authorization_status() -> int:
 		return int(_plugin.call("getTrackingAuthorizationStatus"))
 	return -1
 
+func request_consent_info_update() -> void:
+	if _plugin == null:
+		return
+	if _plugin.has_method("request_consent_info_update"):
+		_plugin.call("request_consent_info_update")
+		return
+	if _plugin.has_method("requestConsentInfoUpdate"):
+		_plugin.call("requestConsentInfoUpdate")
+
+func can_request_ads() -> bool:
+	if _plugin == null:
+		return false
+	if _plugin.has_method("can_request_ads"):
+		return bool(_plugin.call("can_request_ads"))
+	if _plugin.has_method("canRequestAds"):
+		return bool(_plugin.call("canRequestAds"))
+	return false
+
+func is_consent_form_available() -> bool:
+	if _plugin == null:
+		return false
+	if _plugin.has_method("is_consent_form_available"):
+		return bool(_plugin.call("is_consent_form_available"))
+	if _plugin.has_method("isConsentFormAvailable"):
+		return bool(_plugin.call("isConsentFormAvailable"))
+	return false
+
+func show_consent_form_if_required() -> void:
+	if _plugin == null:
+		return
+	if _plugin.has_method("show_consent_form_if_required"):
+		_plugin.call("show_consent_form_if_required")
+		return
+	if _plugin.has_method("showConsentFormIfRequired"):
+		_plugin.call("showConsentFormIfRequired")
+
+func get_consent_status() -> int:
+	if _plugin == null:
+		return 0
+	if _plugin.has_method("get_consent_status"):
+		return int(_plugin.call("get_consent_status"))
+	if _plugin.has_method("getConsentStatus"):
+		return int(_plugin.call("getConsentStatus"))
+	return 0
+
+func get_privacy_options_requirement_status() -> int:
+	if _plugin == null:
+		return 0
+	if _plugin.has_method("get_privacy_options_requirement_status"):
+		return int(_plugin.call("get_privacy_options_requirement_status"))
+	if _plugin.has_method("getPrivacyOptionsRequirementStatus"):
+		return int(_plugin.call("getPrivacyOptionsRequirementStatus"))
+	return 0
+
+func is_privacy_options_form_available() -> bool:
+	if _plugin == null:
+		return false
+	if _plugin.has_method("is_privacy_options_form_available"):
+		return bool(_plugin.call("is_privacy_options_form_available"))
+	if _plugin.has_method("isPrivacyOptionsFormAvailable"):
+		return bool(_plugin.call("isPrivacyOptionsFormAvailable"))
+	return false
+
+func show_privacy_options_form() -> void:
+	if _plugin == null:
+		return
+	if _plugin.has_method("show_privacy_options_form"):
+		_plugin.call("show_privacy_options_form")
+		return
+	if _plugin.has_method("showPrivacyOptionsForm"):
+		_plugin.call("showPrivacyOptionsForm")
+
 func _try_connect(signal_name: String, callback: Callable) -> void:
 	if _plugin == null:
 		return
@@ -212,3 +300,27 @@ func _on_rewarded_failed_to_load() -> void:
 
 func _on_rewarded_show_failed() -> void:
 	emit_signal("rewarded_show_failed")
+
+func _on_consent_info_updated() -> void:
+	emit_signal("consent_info_updated")
+
+func _on_consent_form_shown() -> void:
+	emit_signal("consent_form_shown")
+
+func _on_consent_form_dismissed() -> void:
+	emit_signal("consent_form_dismissed")
+
+func _on_consent_flow_finished() -> void:
+	emit_signal("consent_flow_finished")
+
+func _on_consent_error(message: String = "") -> void:
+	emit_signal("consent_error", message)
+
+func _on_privacy_options_form_shown() -> void:
+	emit_signal("privacy_options_form_shown")
+
+func _on_privacy_options_form_dismissed() -> void:
+	emit_signal("privacy_options_form_dismissed")
+
+func _on_privacy_options_form_finished() -> void:
+	emit_signal("privacy_options_form_finished")

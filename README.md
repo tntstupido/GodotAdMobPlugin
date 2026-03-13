@@ -73,8 +73,10 @@ AdMobPlugin/
   - `admob_plugin.gdip`
 - iOS consent stack support is now present:
   - UMP helpers exposed to GDScript
+  - explicit UMP privacy-options form helper exposed to GDScript
   - ATT helpers exposed to GDScript
   - ATT prompt is manual-only (not auto-triggered by ad loading)
+  - consuming projects may keep this as plugin capability only; a game does not need to expose a manual privacy-options button if its validated UX is fully covered by automatic UMP/ATT flow
 - Native iOS source and build workflow remain under [ios/native/AdMobPlugin](/Users/mladen/Documents/Plugins/GodotAdMobPlugin/ios/native/AdMobPlugin).
 
 ---
@@ -196,6 +198,8 @@ func _on_rewarded_earned() -> void:
 | `show_consent_form_if_required()` | Requests UMP consent form presentation on iOS when required. |
 | `get_consent_status() -> int` | Returns UMP consent status value on iOS when supported. |
 | `get_privacy_options_requirement_status() -> int` | Returns UMP privacy-options requirement status on iOS when supported. |
+| `is_privacy_options_form_available() -> bool` | Returns whether UMP privacy options are currently available on iOS. |
+| `show_privacy_options_form()` | Presents the native UMP privacy-options form on iOS when available. This is optional at the game-UI level; projects can keep it unused if automatic consent flow is sufficient. |
 
 ### AdMobPlugin (native singleton methods)
 
@@ -216,6 +220,8 @@ func _on_rewarded_earned() -> void:
 | `show_consent_form_if_required()` / `showConsentFormIfRequired()` | iOS UMP consent form presentation helper. |
 | `get_consent_status() -> int` / `getConsentStatus() -> int` | iOS UMP consent status helper. |
 | `get_privacy_options_requirement_status() -> int` / `getPrivacyOptionsRequirementStatus() -> int` | iOS UMP privacy options requirement helper. |
+| `is_privacy_options_form_available() -> bool` / `isPrivacyOptionsFormAvailable() -> bool` | iOS UMP privacy-options availability helper. |
+| `show_privacy_options_form()` / `showPrivacyOptionsForm()` | iOS UMP privacy-options form presentation helper. |
 
 ### AdManager Signals (autoload)
 
@@ -251,6 +257,9 @@ func _on_rewarded_earned() -> void:
 | `consent_form_dismissed` | iOS UMP consent form dismissed callback. |
 | `consent_flow_finished` | iOS UMP consent flow finished callback. |
 | `consent_error` | iOS UMP consent flow error callback. |
+| `privacy_options_form_shown` | iOS UMP privacy-options form shown callback. |
+| `privacy_options_form_dismissed` | iOS UMP privacy-options form dismissed callback. |
+| `privacy_options_form_finished` | iOS UMP privacy-options flow finished callback. |
 
 ---
 

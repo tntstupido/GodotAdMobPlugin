@@ -22,6 +22,9 @@ static const char *CONSENT_FORM_SHOWN_SIGNAL = "consent_form_shown";
 static const char *CONSENT_FORM_DISMISSED_SIGNAL = "consent_form_dismissed";
 static const char *CONSENT_FLOW_FINISHED_SIGNAL = "consent_flow_finished";
 static const char *CONSENT_ERROR_SIGNAL = "consent_error";
+static const char *PRIVACY_OPTIONS_FORM_SHOWN_SIGNAL = "privacy_options_form_shown";
+static const char *PRIVACY_OPTIONS_FORM_DISMISSED_SIGNAL = "privacy_options_form_dismissed";
+static const char *PRIVACY_OPTIONS_FORM_FINISHED_SIGNAL = "privacy_options_form_finished";
 
 static NSString *StringToNSString(const String &value) {
 	CharString utf8 = value.utf8();
@@ -57,6 +60,8 @@ static String NSStringToString(NSString *value) {
 - (void)showConsentFormIfRequired;
 - (int)consentStatus;
 - (int)privacyOptionsRequirementStatus;
+- (BOOL)isPrivacyOptionsFormAvailable;
+- (void)showPrivacyOptionsForm;
 
 @end
 
@@ -273,6 +278,46 @@ static UIViewController *RootViewController() {
 	return (int)[UMPConsentInformation sharedInstance].privacyOptionsRequirementStatus;
 }
 
+- (BOOL)isPrivacyOptionsFormAvailable {
+	return [UMPConsentInformation sharedInstance].privacyOptionsRequirementStatus == UMPPrivacyOptionsRequirementStatusRequired;
+}
+
+- (void)showPrivacyOptionsForm {
+	dispatch_async(dispatch_get_main_queue(), ^{
+		UIViewController *viewController = RootViewController();
+		UMPConsentInformation *info = [UMPConsentInformation sharedInstance];
+		self.plugin->set_consent_state(
+			true,
+			info.canRequestAds,
+			info.formStatus == UMPFormStatusAvailable,
+			(int)info.consentStatus,
+			(int)info.privacyOptionsRequirementStatus
+		);
+		if (viewController == nil) {
+			self.plugin->notify_consent_error("Privacy options form requires a root view controller");
+			return;
+		}
+		self.plugin->notify_privacy_options_form_shown();
+		[UMPConsentForm presentPrivacyOptionsFormFromViewController:viewController
+			completionHandler:^(NSError *_Nullable error) {
+				UMPConsentInformation *updatedInfo = [UMPConsentInformation sharedInstance];
+				self.plugin->set_consent_state(
+					true,
+					updatedInfo.canRequestAds,
+					updatedInfo.formStatus == UMPFormStatusAvailable,
+					(int)updatedInfo.consentStatus,
+					(int)updatedInfo.privacyOptionsRequirementStatus
+				);
+				self.plugin->notify_privacy_options_form_dismissed();
+				if (error != nil) {
+					self.plugin->notify_consent_error(NSStringToString(error.localizedDescription ?: @"Unknown privacy options form error"));
+					return;
+				}
+				self.plugin->notify_privacy_options_form_finished();
+			}];
+	});
+}
+
 - (void)adDidDismissFullScreenContent:(id<GADFullScreenPresentingAd>)ad {
 	if (ad == self.interstitialAd) {
 		self.interstitialAd = nil;
@@ -333,6 +378,10 @@ void AdMobPlugin::_bind_methods() {
 	ClassDB::bind_method(D_METHOD("getConsentStatus"), &AdMobPlugin::getConsentStatus);
 	ClassDB::bind_method(D_METHOD("get_privacy_options_requirement_status"), &AdMobPlugin::get_privacy_options_requirement_status);
 	ClassDB::bind_method(D_METHOD("getPrivacyOptionsRequirementStatus"), &AdMobPlugin::getPrivacyOptionsRequirementStatus);
+	ClassDB::bind_method(D_METHOD("is_privacy_options_form_available"), &AdMobPlugin::is_privacy_options_form_available);
+	ClassDB::bind_method(D_METHOD("isPrivacyOptionsFormAvailable"), &AdMobPlugin::isPrivacyOptionsFormAvailable);
+	ClassDB::bind_method(D_METHOD("show_privacy_options_form"), &AdMobPlugin::show_privacy_options_form);
+	ClassDB::bind_method(D_METHOD("showPrivacyOptionsForm"), &AdMobPlugin::showPrivacyOptionsForm);
 
 	ADD_SIGNAL(MethodInfo(INITIALIZED_SIGNAL));
 	ADD_SIGNAL(MethodInfo(INTERSTITIAL_LOADED_SIGNAL));
@@ -349,6 +398,9 @@ void AdMobPlugin::_bind_methods() {
 	ADD_SIGNAL(MethodInfo(CONSENT_FORM_DISMISSED_SIGNAL));
 	ADD_SIGNAL(MethodInfo(CONSENT_FLOW_FINISHED_SIGNAL));
 	ADD_SIGNAL(MethodInfo(CONSENT_ERROR_SIGNAL, PropertyInfo(Variant::STRING, "message")));
+	ADD_SIGNAL(MethodInfo(PRIVACY_OPTIONS_FORM_SHOWN_SIGNAL));
+	ADD_SIGNAL(MethodInfo(PRIVACY_OPTIONS_FORM_DISMISSED_SIGNAL));
+	ADD_SIGNAL(MethodInfo(PRIVACY_OPTIONS_FORM_FINISHED_SIGNAL));
 }
 
 AdMobPlugin *AdMobPlugin::get_singleton() {
@@ -491,6 +543,22 @@ int AdMobPlugin::getPrivacyOptionsRequirementStatus() const {
 	return get_privacy_options_requirement_status();
 }
 
+bool AdMobPlugin::is_privacy_options_form_available() const {
+	return privacy_options_requirement_status == (int)UMPPrivacyOptionsRequirementStatusRequired;
+}
+
+bool AdMobPlugin::isPrivacyOptionsFormAvailable() const {
+	return is_privacy_options_form_available();
+}
+
+void AdMobPlugin::show_privacy_options_form() {
+	[bridge showPrivacyOptionsForm];
+}
+
+void AdMobPlugin::showPrivacyOptionsForm() {
+	show_privacy_options_form();
+}
+
 void AdMobPlugin::notify_initialized() {
 	initialized = true;
 	emit_signal(INITIALIZED_SIGNAL);
@@ -564,10 +632,23 @@ void AdMobPlugin::notify_consent_error(const String &message) {
 	emit_signal(CONSENT_ERROR_SIGNAL, message);
 }
 
+void AdMobPlugin::notify_privacy_options_form_shown() {
+	emit_signal(PRIVACY_OPTIONS_FORM_SHOWN_SIGNAL);
+}
+
+void AdMobPlugin::notify_privacy_options_form_dismissed() {
+	emit_signal(PRIVACY_OPTIONS_FORM_DISMISSED_SIGNAL);
+}
+
+void AdMobPlugin::notify_privacy_options_form_finished() {
+	emit_signal(PRIVACY_OPTIONS_FORM_FINISHED_SIGNAL);
+}
+
 void AdMobPlugin::set_consent_state(bool info_ready, bool ads_allowed, bool form_available, int new_consent_status, int new_privacy_options_requirement_status) {
 	consent_info_ready = info_ready;
 	can_request_ads = ads_allowed;
 	consent_form_available = form_available;
 	consent_status = new_consent_status;
 	privacy_options_requirement_status = new_privacy_options_requirement_status;
+	privacy_options_form_available = new_privacy_options_requirement_status == (int)UMPPrivacyOptionsRequirementStatusRequired;
 }
