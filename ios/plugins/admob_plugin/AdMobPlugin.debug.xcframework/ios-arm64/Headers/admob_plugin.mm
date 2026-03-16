@@ -208,6 +208,19 @@ static UIViewController *RootViewController() {
 - (void)requestConsentInfoUpdate {
 	dispatch_async(dispatch_get_main_queue(), ^{
 		UMPRequestParameters *parameters = [[UMPRequestParameters alloc] init];
+#if DEBUG
+		// Debug-only hook: when enabled via env var, force EEA geography so the UMP form can be tested.
+		NSString *forceEEA = NSProcessInfo.processInfo.environment[@"GODOT_UMP_DEBUG_GEO_EEA"];
+		if (forceEEA != nil && [forceEEA intValue] == 1) {
+			UMPDebugSettings *debugSettings = [[UMPDebugSettings alloc] init];
+			debugSettings.geography = UMPDebugGeographyEEA;
+			NSString *umpTestDeviceID = NSProcessInfo.processInfo.environment[@"GODOT_UMP_DEBUG_TEST_DEVICE_ID"];
+			if (umpTestDeviceID != nil && umpTestDeviceID.length > 0) {
+				debugSettings.testDeviceIdentifiers = @[ umpTestDeviceID ];
+			}
+			parameters.debugSettings = debugSettings;
+		}
+#endif
 		[[UMPConsentInformation sharedInstance]
 			requestConsentInfoUpdateWithParameters:parameters
 			completionHandler:^(NSError *_Nullable error) {
