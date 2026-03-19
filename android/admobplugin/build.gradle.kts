@@ -33,4 +33,5 @@ dependencies {
     compileOnly(fileTree("libs") { include("*.aar") })
 
     implementation("com.google.android.gms:play-services-ads:24.1.0")
+    implementation("com.google.android.ump:user-messaging-platform:3.1.0")
 }

@@ -1,5 +1,19 @@
 # Changelog
 
+## v1.3.3 - 2026-03-19
+
+### Added
+- Added Android UMP debug/testing API surface in native plugin (`AdMobPlugin.kt`):
+  - debug geography setter (`set_ump_debug_geography` / `setUmpDebugGeography`)
+  - consent state reset (`reset_ump_consent_state` / `resetUmpConsentState`)
+  - UMP consent update/status/form/privacy-options helper methods and related signals.
+- Added Android UMP dependency to Gradle module:
+  - `com.google.android.ump:user-messaging-platform:3.1.0`
+
+### Documentation
+- Added README section documenting Android UMP test helper methods.
+- Added explicit README guidance that debug-forcing controls are testing-only and should be gated by host-app debug build policy.
+
 ## v1.3.2 - 2026-03-13
 
 ### Fixed

@@ -177,6 +177,27 @@ func _on_rewarded_earned() -> void:
 
 ---
 
+## Android UMP Test Helpers
+
+Android runtime now exposes explicit UMP debug/testing helpers for pre-publish consent validation:
+
+- `set_ump_debug_geography(mode)` / `setUmpDebugGeography(mode)`
+  - accepted values: `disabled`, `eea`, `not_eea`
+- `reset_ump_consent_state()` / `resetUmpConsentState()`
+- `request_consent_info_update()` / `requestConsentInfoUpdate()`
+- `can_request_ads()` / `canRequestAds()`
+- `is_consent_form_available()` / `isConsentFormAvailable()`
+- `show_consent_form_if_required()` / `showConsentFormIfRequired()`
+- `get_consent_status()` / `getConsentStatus()`
+- `get_privacy_options_requirement_status()` / `getPrivacyOptionsRequirementStatus()`
+- `is_privacy_options_form_available()` / `isPrivacyOptionsFormAvailable()`
+- `show_privacy_options_form()` / `showPrivacyOptionsForm()`
+
+Important:
+- These are testing-oriented controls.
+- Production/release behavior should not force debug geography or test-device overrides.
+- Enforce that policy in the host game layer (for example, only apply these controls in debug builds).
+
 ## API Reference
 
 ### AdManager (autoload singleton)
