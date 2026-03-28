@@ -3,10 +3,12 @@ package com.yourcompany.admobplugin
 import android.app.Activity
 import android.util.Log
 import com.google.android.gms.ads.AdError
+import com.google.android.gms.ads.AdValue
 import com.google.android.gms.ads.AdRequest
 import com.google.android.gms.ads.FullScreenContentCallback
 import com.google.android.gms.ads.LoadAdError
 import com.google.android.gms.ads.MobileAds
+import com.google.android.gms.ads.OnPaidEventListener
 import com.google.android.gms.ads.RequestConfiguration
 import com.google.android.gms.ads.interstitial.InterstitialAd
 import com.google.android.gms.ads.interstitial.InterstitialAdLoadCallback
@@ -50,6 +52,14 @@ class AdMobPlugin(godot: Godot) : GodotPlugin(godot) {
         SignalInfo("rewarded_earned"),
         SignalInfo("rewarded_failed_to_load"),
         SignalInfo("rewarded_show_failed"),
+        SignalInfo(
+            "paid_event",
+            String::class.java, // ad_type: interstitial | rewarded
+            String::class.java, // ad_unit_id
+            java.lang.Long::class.java, // value_micros
+            String::class.java, // currency_code
+            java.lang.Integer::class.java // precision_type
+        ),
         SignalInfo("consent_info_updated"),
         SignalInfo("consent_form_shown"),
         SignalInfo("consent_form_dismissed"),
@@ -317,6 +327,9 @@ class AdMobPlugin(godot: Godot) : GodotPlugin(godot) {
                 object : InterstitialAdLoadCallback() {
                     override fun onAdLoaded(ad: InterstitialAd) {
                         Log.d(TAG, "Interstitial ad loaded.")
+                        attachPaidEventListener("interstitial", ad.adUnitId) { listener ->
+                            ad.onPaidEventListener = listener
+                        }
                         interstitialAd = ad
                         emitSignal("interstitial_loaded")
                     }
@@ -395,6 +408,9 @@ class AdMobPlugin(godot: Godot) : GodotPlugin(godot) {
                 object : RewardedAdLoadCallback() {
                     override fun onAdLoaded(ad: RewardedAd) {
                         Log.d(TAG, "Rewarded ad loaded.")
+                        attachPaidEventListener("rewarded", ad.adUnitId) { listener ->
+                            ad.onPaidEventListener = listener
+                        }
                         rewardedAd = ad
                         emitSignal("rewarded_loaded")
                     }
@@ -486,5 +502,29 @@ class AdMobPlugin(godot: Godot) : GodotPlugin(godot) {
         }
 
         return requestBuilder.build()
+    }
+
+    private fun attachPaidEventListener(
+        adType: String,
+        adUnitId: String?,
+        setter: (OnPaidEventListener) -> Unit
+    ) {
+        val normalizedAdUnitId = adUnitId ?: ""
+        setter.invoke(
+            OnPaidEventListener { adValue ->
+                emitPaidEvent(adType, normalizedAdUnitId, adValue)
+            }
+        )
+    }
+
+    private fun emitPaidEvent(adType: String, adUnitId: String, adValue: AdValue) {
+        val valueMicros = adValue.valueMicros
+        val currencyCode = adValue.currencyCode ?: "USD"
+        val precisionType = adValue.precisionType
+        emitSignal("paid_event", adType, adUnitId, valueMicros, currencyCode, precisionType)
+        Log.d(
+            TAG,
+            "paid_event type=$adType unit=$adUnitId value_micros=$valueMicros currency=$currencyCode precision=$precisionType"
+        )
     }
 }

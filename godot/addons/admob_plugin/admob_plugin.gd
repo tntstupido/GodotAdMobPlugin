@@ -2,9 +2,9 @@
 extends EditorPlugin
 
 const PLUGIN_NAME := "AdMobPlugin"
-const ADMOB_TEST_APP_ID := "ca-app-pub-3940256099942544~3347511713"
-const ADMOB_TEST_INTERSTITIAL_ID := "ca-app-pub-3940256099942544/1033173712"
-const ADMOB_TEST_REWARDED_ID := "ca-app-pub-3940256099942544/5224354917"
+const ADMOB_TEST_APP_ID := "ca-app-pub-6476404944905036~8317775305"
+const ADMOB_TEST_INTERSTITIAL_ID := "ca-app-pub-6476404944905036/3474901339"
+const ADMOB_TEST_REWARDED_ID := "ca-app-pub-6476404944905036/4755626165"
 const DEFAULT_ATT_MESSAGE := "This identifier will be used to deliver more relevant ads to you."
 
 const LEGACY_APP_ID_SETTING := "admob/app_id"

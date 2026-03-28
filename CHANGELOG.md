@@ -1,5 +1,22 @@
 # Changelog
 
+## v1.3.4 - 2026-03-28
+
+### Added
+- Added Android impression-level ad revenue (ILR) paid-event support:
+  - native plugin now emits `paid_event` with payload:
+    - `ad_type`
+    - `ad_unit_id`
+    - `value_micros`
+    - `currency_code`
+    - `precision_type`
+  - wired `OnPaidEventListener` for both interstitial and rewarded ads.
+- Added Godot autoload bridge signal in plugin payload:
+  - `paid_event(ad_type, ad_unit_id, value_micros, currency_code, precision_type)`
+
+### Changed
+- Updated Godot addon export-plugin default/fallback IDs to project production Android IDs so export-time manifest metadata does not fall back to Google test App ID.
+
 ## v1.3.3 - 2026-03-19
 
 ### Added

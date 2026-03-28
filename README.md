@@ -3,6 +3,7 @@
 Native Android plugin that exposes AdMob interstitial and rewarded ads to GDScript.
 The Godot-facing layer now includes platform-specific settings and iOS ATT helper hooks, and the repository includes a Godot iOS plugin descriptor scaffold under `ios/plugins/`.
 Tested Android target: Godot 4.5.1 and play-services-ads 24.1.0.
+Android ILR support is included via native `paid_event` callbacks (`OnPaidEventListener`) for interstitial and rewarded ads.
 
 ---
 
@@ -258,6 +259,7 @@ Important:
 | `rewarded_earned` | User earned reward callback fired. |
 | `rewarded_failed_to_load` | Rewarded load error (no network, wrong ID, etc.) |
 | `rewarded_show_failed` | Error while showing the rewarded ad. |
+| `paid_event(ad_type, ad_unit_id, value_micros, currency_code, precision_type)` | Impression-level ad revenue callback for loaded ad objects. |
 
 ### AdMobPlugin Signals (native)
 
@@ -273,6 +275,7 @@ Important:
 | `rewarded_earned` | User earned reward callback fired. |
 | `rewarded_failed_to_load` | Rewarded ad load failed. |
 | `rewarded_show_failed` | Rewarded ad show failed. |
+| `paid_event` | Impression-level ad revenue callback (`ad_type`, `ad_unit_id`, `value_micros`, `currency_code`, `precision_type`). |
 | `consent_info_updated` | iOS UMP consent info update callback. |
 | `consent_form_shown` | iOS UMP consent form shown callback. |
 | `consent_form_dismissed` | iOS UMP consent form dismissed callback. |
@@ -285,6 +288,8 @@ Important:
 ---
 
 ## Test IDs (Google)
+
+When a device is configured as a test device, `paid_event` may still fire but `value_micros` can be `0`.
 
 Use these **only** during development and testing:
 

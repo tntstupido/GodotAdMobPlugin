@@ -10,6 +10,7 @@ signal rewarded_closed
 signal rewarded_earned
 signal rewarded_failed_to_load
 signal rewarded_show_failed
+signal paid_event(ad_type: String, ad_unit_id: String, value_micros: int, currency_code: String, precision_type: int)
 signal consent_info_updated
 signal consent_form_shown
 signal consent_form_dismissed
@@ -61,6 +62,7 @@ func _ready() -> void:
 	_try_connect("rewarded_earned", _on_rewarded_earned)
 	_try_connect("rewarded_failed_to_load", _on_rewarded_failed_to_load)
 	_try_connect("rewarded_show_failed", _on_rewarded_show_failed)
+	_try_connect("paid_event", _on_paid_event)
 	_try_connect("consent_info_updated", _on_consent_info_updated)
 	_try_connect("consent_form_shown", _on_consent_form_shown)
 	_try_connect("consent_form_dismissed", _on_consent_form_dismissed)
@@ -300,6 +302,9 @@ func _on_rewarded_failed_to_load() -> void:
 
 func _on_rewarded_show_failed() -> void:
 	emit_signal("rewarded_show_failed")
+
+func _on_paid_event(ad_type: String = "", ad_unit_id: String = "", value_micros: int = 0, currency_code: String = "USD", precision_type: int = -1) -> void:
+	emit_signal("paid_event", ad_type, ad_unit_id, value_micros, currency_code, precision_type)
 
 func _on_consent_info_updated() -> void:
 	emit_signal("consent_info_updated")
