@@ -38,6 +38,23 @@ static String NSStringToString(NSString *value) {
 	return String::utf8([value UTF8String]);
 }
 
+static NSArray<NSString *> *ParseCSVDeviceIdentifiers(NSString *csv) {
+	if (csv == nil || csv.length == 0) {
+		return @[];
+	}
+
+	NSMutableArray<NSString *> *result = [NSMutableArray array];
+	NSArray<NSString *> *parts = [csv componentsSeparatedByString:@","];
+	NSCharacterSet *whitespace = [NSCharacterSet whitespaceAndNewlineCharacterSet];
+	for (NSString *part in parts) {
+		NSString *trimmed = [part stringByTrimmingCharactersInSet:whitespace];
+		if (trimmed.length > 0) {
+			[result addObject:trimmed];
+		}
+	}
+	return result;
+}
+
 @interface AdMobIOSBridge : NSObject <GADFullScreenContentDelegate>
 
 @property(nonatomic, assign) AdMobPlugin *plugin;
@@ -45,9 +62,12 @@ static String NSStringToString(NSString *value) {
 @property(nonatomic, strong) GADRewardedAd *rewardedAd;
 @property(nonatomic, assign) BOOL initialized;
 @property(nonatomic, assign) BOOL testMode;
+@property(nonatomic, copy) NSArray<NSString *> *testDeviceIdentifiers;
 
 - (instancetype)initWithPlugin:(AdMobPlugin *)plugin;
 - (NSError *)initializeWithAppID:(NSString *)appID testMode:(BOOL)testMode;
+- (void)setTestDeviceIdentifiersFromCSV:(NSString *)deviceIDsCSV;
+- (void)applyTestDeviceConfiguration;
 - (void)loadInterstitialWithAdUnitID:(NSString *)adUnitID;
 - (BOOL)showInterstitial;
 - (void)loadRewardedWithAdUnitID:(NSString *)adUnitID;
@@ -92,8 +112,14 @@ static UIViewController *RootViewController() {
 	self = [super init];
 	if (self != nil) {
 		_plugin = plugin;
+		_testDeviceIdentifiers = @[];
 	}
 	return self;
+}
+
+- (void)applyTestDeviceConfiguration {
+	NSArray<NSString *> *deviceIDs = self.testDeviceIdentifiers != nil ? self.testDeviceIdentifiers : @[];
+	GADMobileAds.sharedInstance.requestConfiguration.testDeviceIdentifiers = deviceIDs;
 }
 
 - (NSError *)initializeWithAppID:(NSString *)appID testMode:(BOOL)testMode {
@@ -102,6 +128,7 @@ static UIViewController *RootViewController() {
 
 	dispatch_async(dispatch_get_main_queue(), ^{
 		if (self.initialized) {
+			[self applyTestDeviceConfiguration];
 			self.plugin->notify_initialized();
 			return;
 		}
@@ -109,6 +136,7 @@ static UIViewController *RootViewController() {
 		[GADMobileAds.sharedInstance startWithCompletionHandler:^(GADInitializationStatus *_Nonnull status) {
 			(void)status;
 			self.initialized = YES;
+			[self applyTestDeviceConfiguration];
 			self.plugin->notify_initialized();
 		}];
 	});
@@ -116,11 +144,20 @@ static UIViewController *RootViewController() {
 	return nil;
 }
 
+- (void)setTestDeviceIdentifiersFromCSV:(NSString *)deviceIDsCSV {
+	NSArray<NSString *> *parsedIdentifiers = ParseCSVDeviceIdentifiers(deviceIDsCSV);
+	dispatch_async(dispatch_get_main_queue(), ^{
+		self.testDeviceIdentifiers = parsedIdentifiers;
+		[self applyTestDeviceConfiguration];
+	});
+}
+
 - (void)loadInterstitialWithAdUnitID:(NSString *)adUnitID {
 	if (@available(iOS 14, *)) {
 		self.plugin->set_tracking_authorization_status((int)ATTrackingManager.trackingAuthorizationStatus);
 	}
 	dispatch_async(dispatch_get_main_queue(), ^{
+		[self applyTestDeviceConfiguration];
 		[GADInterstitialAd loadWithAdUnitID:adUnitID
 									request:[GADRequest request]
 						  completionHandler:^(GADInterstitialAd * _Nullable ad, NSError * _Nullable error) {
@@ -155,6 +192,7 @@ static UIViewController *RootViewController() {
 		self.plugin->set_tracking_authorization_status((int)ATTrackingManager.trackingAuthorizationStatus);
 	}
 	dispatch_async(dispatch_get_main_queue(), ^{
+		[self applyTestDeviceConfiguration];
 		[GADRewardedAd loadWithAdUnitID:adUnitID
 								request:[GADRequest request]
 					  completionHandler:^(GADRewardedAd * _Nullable ad, NSError * _Nullable error) {
@@ -363,6 +401,8 @@ AdMobPlugin *AdMobPlugin::instance = nullptr;
 void AdMobPlugin::_bind_methods() {
 	ClassDB::bind_method("initialize", &AdMobPlugin::initialize);
 	ClassDB::bind_method("init", &AdMobPlugin::init);
+	ClassDB::bind_method("set_test_device_ids", &AdMobPlugin::set_test_device_ids);
+	ClassDB::bind_method("setTestDeviceIds", &AdMobPlugin::setTestDeviceIds);
 	ClassDB::bind_method("load_interstitial", &AdMobPlugin::load_interstitial);
 	ClassDB::bind_method("loadInterstitial", &AdMobPlugin::loadInterstitial);
 	ClassDB::bind_method("show_interstitial", &AdMobPlugin::show_interstitial);
@@ -442,6 +482,14 @@ Error AdMobPlugin::initialize(String app_id, bool test_mode) {
 
 void AdMobPlugin::init(String app_id) {
 	initialize(app_id, true);
+}
+
+void AdMobPlugin::set_test_device_ids(String device_ids_csv) {
+	[bridge setTestDeviceIdentifiersFromCSV:StringToNSString(device_ids_csv)];
+}
+
+void AdMobPlugin::setTestDeviceIds(String device_ids_csv) {
+	set_test_device_ids(device_ids_csv);
 }
 
 void AdMobPlugin::load_interstitial(String ad_unit_id) {

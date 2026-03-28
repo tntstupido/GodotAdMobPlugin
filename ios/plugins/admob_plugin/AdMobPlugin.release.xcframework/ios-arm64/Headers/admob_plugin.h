@@ -38,6 +38,8 @@ public:
 
 	Error initialize(String app_id, bool test_mode);
 	void init(String app_id);
+	void set_test_device_ids(String device_ids_csv);
+	void setTestDeviceIds(String device_ids_csv);
 
 	void load_interstitial(String ad_unit_id);
 	void loadInterstitial(String ad_unit_id);
