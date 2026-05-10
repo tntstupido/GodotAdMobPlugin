@@ -66,7 +66,7 @@ AdMobPlugin/
 ## Status
 
 - Android export/runtime support is implemented and packaged in this repository.
-- iOS payload is implemented and included under [ios/plugins/admob_plugin](/Users/mladen/Documents/Plugins/GodotAdMobPlugin/ios/plugins/admob_plugin):
+- iOS payload is implemented and included under `ios/plugins/admob_plugin/`:
   - `AdMobPlugin.debug.xcframework`
   - `AdMobPlugin.release.xcframework`
   - `GoogleMobileAds.xcframework`
@@ -78,7 +78,37 @@ AdMobPlugin/
   - ATT helpers exposed to GDScript
   - ATT prompt is manual-only (not auto-triggered by ad loading)
   - consuming projects may keep this as plugin capability only; a game does not need to expose a manual privacy-options button if its validated UX is fully covered by automatic UMP/ATT flow
-- Native iOS source and build workflow remain under [ios/native/AdMobPlugin](/Users/mladen/Documents/Plugins/GodotAdMobPlugin/ios/native/AdMobPlugin).
+- Native iOS source and build workflow remain under `ios/native/AdMobPlugin/`.
+
+### iOS Handoff Readiness (for later Mac setup)
+
+Snapshot date: `2026-05-10`
+
+| Area | Current State | Notes |
+|---|---|---|
+| iOS runtime payload in source repo | Ready | `ios/plugins/admob_plugin/` contains plugin + dependency xcframeworks and `.gdip`. |
+| Godot iOS plugin descriptor | Ready | `admob_plugin.gdip` includes `GoogleMobileAds`, `UserMessagingPlatform`, `JavaScriptCore.framework`, and `use_swift_runtime=true`. |
+| iOS native source for rebuilds | Ready | `ios/native/AdMobPlugin/` includes Objective-C++ bridge and `scripts/build_xcframework.sh`. |
+| iOS post-export patch helper | Ready (project-scoped) | `scripts/patch_ios_export_xcode_project.py` is idempotent and currently expects `dielaughing.xcodeproj` in the exported folder. |
+| GDScript-facing consent/ATT API | Ready | UMP + privacy options + ATT helpers are exposed through the plugin and autoload wrappers. |
+| Runtime ad-flow validation in consuming game | Pending per consuming project | Must be verified on real iOS device/TestFlight after export and signing. |
+| App Store metadata/compliance setup | Out of scope for this repo | Managed in the consuming game project and App Store Connect. |
+
+### Mac Setup Checklist (from this source plugin)
+
+1. Sync payload from this repo into the consuming project:
+   - `godot/addons/admob_plugin/`
+   - `godot/autoload/AdManager.gd`
+   - `ios/plugins/admob_plugin/`
+2. Enable `AdMobPlugin` in the consuming Godot project and make sure the iOS export preset has `plugins/AdMobPlugin=true`.
+3. Export the iOS/Xcode project from Godot.
+4. If a fresh export misses Swift/JSCore wiring, run:
+   - `python3 scripts/patch_ios_export_xcode_project.py <exported_ios_project_dir>`
+5. Archive in Xcode and validate on real iPhone:
+   - UMP consent flow
+   - privacy options flow
+   - ATT prompt timing
+   - interstitial/rewarded load/show callbacks
 
 ---
 
@@ -110,7 +140,7 @@ cp -r ios/plugins/                 <your_godot_project>/ios/plugins/
 
 ### 3. iOS plugin payload
 
-Godot 4 detects iOS plugins from `.gdip` files inside `res://ios/plugins`. This repository now includes [admob_plugin.gdip](/Users/mladen/Documents/Plugins/GodotAdMobPlugin/ios/plugins/admob_plugin/admob_plugin.gdip), which declares:
+Godot 4 detects iOS plugins from `.gdip` files inside `res://ios/plugins`. This repository now includes `ios/plugins/admob_plugin/admob_plugin.gdip`, which declares:
 
 - singleton name `AdMobPlugin`
 - plugin binary basename `AdMobPlugin.xcframework`
@@ -121,7 +151,7 @@ Godot 4 detects iOS plugins from `.gdip` files inside `res://ios/plugins`. This 
 
 The iOS runtime payload is present in this repository and should be synced into the consuming Godot project under `res://ios/plugins/admob_plugin/`.
 
-Native source code for that bridge now lives in [ios/native/AdMobPlugin](/Users/mladen/Documents/Plugins/GodotAdMobPlugin/ios/native/AdMobPlugin).
+Native source code for that bridge now lives in `ios/native/AdMobPlugin/`.
 
 ### 3.1 iOS post-export patch step
 

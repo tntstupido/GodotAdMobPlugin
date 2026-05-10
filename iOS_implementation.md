@@ -1,4 +1,4 @@
-# iOS Support Status and Next Steps (v1.3.0)
+# iOS Support Status and Next Steps (source-plugin handoff)
 
 ## Goal
 
@@ -10,6 +10,50 @@ Ship Godot iOS support for this AdMob plugin with:
 - iOS export payload included in the addon release
 
 This document is now a handoff/status file, not just a proposal.
+
+## Current Readiness Snapshot (2026-05-10)
+
+### Ready in this source repository
+
+- iOS payload files are present in `ios/plugins/admob_plugin/`:
+  - `AdMobPlugin.debug.xcframework`
+  - `AdMobPlugin.release.xcframework`
+  - `GoogleMobileAds.xcframework`
+  - `UserMessagingPlatform.xcframework`
+  - `admob_plugin.gdip`
+- `admob_plugin.gdip` includes:
+  - `GoogleMobileAds.xcframework`
+  - `UserMessagingPlatform.xcframework`
+  - `JavaScriptCore.framework`
+  - `use_swift_runtime=true`
+- iOS native source/build scaffold exists in `ios/native/AdMobPlugin/`.
+- iOS post-export helper exists in `scripts/patch_ios_export_xcode_project.py`.
+- UMP + ATT APIs are exposed to the Godot-facing layer (`AdManager` + plugin singleton).
+
+### Not guaranteed by source repo alone
+
+- Consuming-project runtime behavior on real iPhone/TestFlight.
+- Consuming-project export/signing consistency on a fresh Mac environment.
+- App Store Connect metadata/privacy correctness (owned by consuming project).
+
+## Mac Handoff Preflight (for later iOS setup)
+
+Before starting iOS validation in a consuming project:
+
+1. Sync plugin payload from this repo:
+   - `godot/addons/admob_plugin/`
+   - `godot/autoload/AdManager.gd`
+   - `ios/plugins/admob_plugin/`
+2. Confirm iOS export preset enables plugin:
+   - `plugins/AdMobPlugin=true`
+3. Export iOS/Xcode project from Godot.
+4. If needed, run fallback patch:
+   - `python3 scripts/patch_ios_export_xcode_project.py <export_dir>`
+5. Validate on physical iPhone:
+   - UMP consent
+   - privacy options
+   - ATT prompt timing
+   - interstitial/rewarded load/show callbacks
 
 ## What Is Already Done In This Repository
 
@@ -200,6 +244,11 @@ Current purpose of that helper:
 
 The helper is idempotent and should be rerun after each fresh export until this step is handled directly by Godot/plugin metadata generation.
 
+Important implementation note:
+
+- the helper is currently project-scoped to an exported project named `dielaughing.xcodeproj`.
+- if a consuming project uses a different Xcode project filename, adjust the helper script path resolution before relying on it.
+
 ## Fresh Export Metadata Fix
 
 This repository now sets:
@@ -322,6 +371,7 @@ Consider the iOS implementation complete only when all of these are true in the 
 - `rewarded_earned` fires correctly
 - close/failure signals match Android naming
 - no manual Xcode dependency edits are required after export
+- if that fails on a fresh export, the fallback patch helper can be used without changing plugin APIs
 
 ## Files Most Likely To Need Further Changes
 

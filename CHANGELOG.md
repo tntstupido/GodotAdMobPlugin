@@ -1,5 +1,14 @@
 # Changelog
 
+## v1.3.5 - 2026-05-10
+
+### Documentation
+- Expanded iOS source-plugin handoff documentation for later Mac setup:
+  - added readiness snapshot with explicit `ready` vs `pending` scope
+  - added Mac preflight/setup checklist for consuming projects
+  - documented post-export patch helper scope (`dielaughing.xcodeproj` expectation)
+- Updated README iOS status/quick-start sections to use repository-relative paths and include the same handoff-ready checklist.
+
 ## v1.3.4 - 2026-03-28
 
 ### Added
