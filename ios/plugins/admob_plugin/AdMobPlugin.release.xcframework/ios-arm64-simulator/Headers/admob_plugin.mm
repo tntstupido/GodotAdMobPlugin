@@ -11,12 +11,16 @@ static const char *INITIALIZED_SIGNAL = "initialized";
 static const char *INTERSTITIAL_LOADED_SIGNAL = "interstitial_loaded";
 static const char *INTERSTITIAL_CLOSED_SIGNAL = "interstitial_closed";
 static const char *INTERSTITIAL_FAILED_TO_LOAD_SIGNAL = "interstitial_failed_to_load";
+static const char *INTERSTITIAL_FAILED_TO_LOAD_DETAILED_SIGNAL = "interstitial_failed_to_load_detailed";
 static const char *INTERSTITIAL_SHOW_FAILED_SIGNAL = "interstitial_show_failed";
+static const char *INTERSTITIAL_SHOW_FAILED_DETAILED_SIGNAL = "interstitial_show_failed_detailed";
 static const char *REWARDED_LOADED_SIGNAL = "rewarded_loaded";
 static const char *REWARDED_CLOSED_SIGNAL = "rewarded_closed";
 static const char *REWARDED_EARNED_SIGNAL = "rewarded_earned";
 static const char *REWARDED_FAILED_TO_LOAD_SIGNAL = "rewarded_failed_to_load";
+static const char *REWARDED_FAILED_TO_LOAD_DETAILED_SIGNAL = "rewarded_failed_to_load_detailed";
 static const char *REWARDED_SHOW_FAILED_SIGNAL = "rewarded_show_failed";
+static const char *REWARDED_SHOW_FAILED_DETAILED_SIGNAL = "rewarded_show_failed_detailed";
 static const char *CONSENT_INFO_UPDATED_SIGNAL = "consent_info_updated";
 static const char *CONSENT_FORM_SHOWN_SIGNAL = "consent_form_shown";
 static const char *CONSENT_FORM_DISMISSED_SIGNAL = "consent_form_dismissed";
@@ -36,6 +40,10 @@ static String NSStringToString(NSString *value) {
 		return String();
 	}
 	return String::utf8([value UTF8String]);
+}
+
+static NSString *SafeNSString(NSString *value) {
+	return value != nil ? value : @"";
 }
 
 static NSArray<NSString *> *ParseCSVDeviceIdentifiers(NSString *csv) {
@@ -63,6 +71,8 @@ static NSArray<NSString *> *ParseCSVDeviceIdentifiers(NSString *csv) {
 @property(nonatomic, assign) BOOL initialized;
 @property(nonatomic, assign) BOOL testMode;
 @property(nonatomic, copy) NSArray<NSString *> *testDeviceIdentifiers;
+@property(nonatomic, assign) UMPDebugGeography umpDebugGeography;
+@property(nonatomic, copy) NSArray<NSString *> *umpDebugTestDeviceIdentifiers;
 
 - (instancetype)initWithPlugin:(AdMobPlugin *)plugin;
 - (NSError *)initializeWithAppID:(NSString *)appID testMode:(BOOL)testMode;
@@ -75,6 +85,8 @@ static NSArray<NSString *> *ParseCSVDeviceIdentifiers(NSString *csv) {
 - (void)requestTrackingAuthorization;
 - (int)trackingAuthorizationStatus;
 - (void)requestConsentInfoUpdate;
+- (void)setUmpDebugGeographyModeFromString:(NSString *)mode;
+- (void)setUmpDebugTestDeviceIdentifiersFromCSV:(NSString *)deviceIDsCSV;
 - (BOOL)canRequestAds;
 - (BOOL)isConsentFormAvailable;
 - (void)showConsentFormIfRequired;
@@ -113,6 +125,8 @@ static UIViewController *RootViewController() {
 	if (self != nil) {
 		_plugin = plugin;
 		_testDeviceIdentifiers = @[];
+		_umpDebugGeography = UMPDebugGeographyDisabled;
+		_umpDebugTestDeviceIdentifiers = @[];
 	}
 	return self;
 }
@@ -125,6 +139,10 @@ static UIViewController *RootViewController() {
 - (NSError *)initializeWithAppID:(NSString *)appID testMode:(BOOL)testMode {
 	(void)appID;
 	self.testMode = testMode;
+	NSLog(@"[AdMobPlugin][iOS] initialize requested app_id=%@ test_mode=%@ test_device_count=%lu",
+		SafeNSString(appID),
+		testMode ? @"true" : @"false",
+		(unsigned long)self.testDeviceIdentifiers.count);
 
 	dispatch_async(dispatch_get_main_queue(), ^{
 		if (self.initialized) {
@@ -149,6 +167,9 @@ static UIViewController *RootViewController() {
 	dispatch_async(dispatch_get_main_queue(), ^{
 		self.testDeviceIdentifiers = parsedIdentifiers;
 		[self applyTestDeviceConfiguration];
+		NSLog(@"[AdMobPlugin][iOS] test device identifiers applied count=%lu ids=%@",
+			(unsigned long)self.testDeviceIdentifiers.count,
+			self.testDeviceIdentifiers);
 	});
 }
 
@@ -158,12 +179,25 @@ static UIViewController *RootViewController() {
 	}
 	dispatch_async(dispatch_get_main_queue(), ^{
 		[self applyTestDeviceConfiguration];
+		NSLog(@"[AdMobPlugin][iOS] load interstitial ad_unit=%@ test_device_count=%lu",
+			SafeNSString(adUnitID),
+			(unsigned long)self.testDeviceIdentifiers.count);
 		[GADInterstitialAd loadWithAdUnitID:adUnitID
 									request:[GADRequest request]
 						  completionHandler:^(GADInterstitialAd * _Nullable ad, NSError * _Nullable error) {
 			if (error != nil || ad == nil) {
 				self.interstitialAd = nil;
+				int errorCode = error != nil ? (int)error.code : -1;
+				String errorDomain = NSStringToString(error != nil ? error.domain : nil);
+				String errorMessage = NSStringToString(error != nil ? error.localizedDescription : @"Interstitial load failed without NSError");
+				String adUnitString = NSStringToString(adUnitID);
+				NSLog(@"[AdMobPlugin][iOS] interstitial load failed code=%d domain=%@ ad_unit=%@ message=%@",
+					errorCode,
+					error != nil ? SafeNSString(error.domain) : @"",
+					SafeNSString(adUnitID),
+					error != nil ? SafeNSString(error.localizedDescription) : @"Interstitial load failed without NSError");
 				self.plugin->notify_interstitial_failed_to_load();
+				self.plugin->notify_interstitial_failed_to_load_detailed(errorCode, errorDomain, errorMessage, adUnitString);
 				return;
 			}
 
@@ -177,7 +211,10 @@ static UIViewController *RootViewController() {
 - (BOOL)showInterstitial {
 	UIViewController *viewController = RootViewController();
 	if (self.interstitialAd == nil || viewController == nil) {
+		NSString *reason = self.interstitialAd == nil ? @"interstitial_not_loaded" : @"root_view_controller_missing";
+		NSLog(@"[AdMobPlugin][iOS] interstitial show failed reason=%@", reason);
 		self.plugin->notify_interstitial_show_failed();
+		self.plugin->notify_interstitial_show_failed_detailed(-1, String("show_interstitial"), NSStringToString(reason));
 		return NO;
 	}
 
@@ -193,12 +230,25 @@ static UIViewController *RootViewController() {
 	}
 	dispatch_async(dispatch_get_main_queue(), ^{
 		[self applyTestDeviceConfiguration];
+		NSLog(@"[AdMobPlugin][iOS] load rewarded ad_unit=%@ test_device_count=%lu",
+			SafeNSString(adUnitID),
+			(unsigned long)self.testDeviceIdentifiers.count);
 		[GADRewardedAd loadWithAdUnitID:adUnitID
 								request:[GADRequest request]
 					  completionHandler:^(GADRewardedAd * _Nullable ad, NSError * _Nullable error) {
 			if (error != nil || ad == nil) {
 				self.rewardedAd = nil;
+				int errorCode = error != nil ? (int)error.code : -1;
+				String errorDomain = NSStringToString(error != nil ? error.domain : nil);
+				String errorMessage = NSStringToString(error != nil ? error.localizedDescription : @"Rewarded load failed without NSError");
+				String adUnitString = NSStringToString(adUnitID);
+				NSLog(@"[AdMobPlugin][iOS] rewarded load failed code=%d domain=%@ ad_unit=%@ message=%@",
+					errorCode,
+					error != nil ? SafeNSString(error.domain) : @"",
+					SafeNSString(adUnitID),
+					error != nil ? SafeNSString(error.localizedDescription) : @"Rewarded load failed without NSError");
 				self.plugin->notify_rewarded_failed_to_load();
+				self.plugin->notify_rewarded_failed_to_load_detailed(errorCode, errorDomain, errorMessage, adUnitString);
 				return;
 			}
 
@@ -212,7 +262,10 @@ static UIViewController *RootViewController() {
 - (BOOL)showRewarded {
 	UIViewController *viewController = RootViewController();
 	if (self.rewardedAd == nil || viewController == nil) {
+		NSString *reason = self.rewardedAd == nil ? @"rewarded_not_loaded" : @"root_view_controller_missing";
+		NSLog(@"[AdMobPlugin][iOS] rewarded show failed reason=%@", reason);
 		self.plugin->notify_rewarded_show_failed();
+		self.plugin->notify_rewarded_show_failed_detailed(-1, String("show_rewarded"), NSStringToString(reason));
 		return NO;
 	}
 
@@ -246,19 +299,24 @@ static UIViewController *RootViewController() {
 - (void)requestConsentInfoUpdate {
 	dispatch_async(dispatch_get_main_queue(), ^{
 		UMPRequestParameters *parameters = [[UMPRequestParameters alloc] init];
-#if DEBUG
-		// Debug-only hook: when enabled via env var, force EEA geography so the UMP form can be tested.
-		NSString *forceEEA = NSProcessInfo.processInfo.environment[@"GODOT_UMP_DEBUG_GEO_EEA"];
-		if (forceEEA != nil && [forceEEA intValue] == 1) {
+		UMPDebugGeography effectiveDebugGeography = self.umpDebugGeography;
+		NSArray<NSString *> *effectiveDebugTestDevices = self.umpDebugTestDeviceIdentifiers != nil ? self.umpDebugTestDeviceIdentifiers : @[];
+		// Optional env test-device override for local/manual QA runs.
+		NSString *umpTestDeviceID = NSProcessInfo.processInfo.environment[@"GODOT_UMP_DEBUG_TEST_DEVICE_ID"];
+		if (umpTestDeviceID != nil && umpTestDeviceID.length > 0) {
+			effectiveDebugTestDevices = @[ umpTestDeviceID ];
+		}
+		if (effectiveDebugGeography != UMPDebugGeographyDisabled) {
 			UMPDebugSettings *debugSettings = [[UMPDebugSettings alloc] init];
-			debugSettings.geography = UMPDebugGeographyEEA;
-			NSString *umpTestDeviceID = NSProcessInfo.processInfo.environment[@"GODOT_UMP_DEBUG_TEST_DEVICE_ID"];
-			if (umpTestDeviceID != nil && umpTestDeviceID.length > 0) {
-				debugSettings.testDeviceIdentifiers = @[ umpTestDeviceID ];
+			debugSettings.geography = effectiveDebugGeography;
+			if (effectiveDebugTestDevices.count > 0) {
+				debugSettings.testDeviceIdentifiers = effectiveDebugTestDevices;
 			}
 			parameters.debugSettings = debugSettings;
+			NSLog(@"[AdMobPlugin][iOS] UMP debug settings applied geography=%ld test_device_count=%lu",
+				(long)effectiveDebugGeography,
+				(unsigned long)effectiveDebugTestDevices.count);
 		}
-#endif
 		[[UMPConsentInformation sharedInstance]
 			requestConsentInfoUpdateWithParameters:parameters
 			completionHandler:^(NSError *_Nullable error) {
@@ -276,6 +334,32 @@ static UIViewController *RootViewController() {
 				}
 				self.plugin->notify_consent_info_updated();
 			}];
+	});
+}
+
+- (void)setUmpDebugGeographyModeFromString:(NSString *)mode {
+	NSString *normalized = mode != nil ? [[mode stringByTrimmingCharactersInSet:[NSCharacterSet whitespaceAndNewlineCharacterSet]] lowercaseString] : @"";
+	UMPDebugGeography resolved = UMPDebugGeographyDisabled;
+	if ([normalized isEqualToString:@"eea"]) {
+		resolved = UMPDebugGeographyEEA;
+	} else if ([normalized isEqualToString:@"regulated_us_state"] || [normalized isEqualToString:@"us_regulated_state"] || [normalized isEqualToString:@"regulatedusstate"]) {
+		resolved = UMPDebugGeographyRegulatedUSState;
+	} else if ([normalized isEqualToString:@"other"] || [normalized isEqualToString:@"not_eea"]) {
+		resolved = UMPDebugGeographyOther;
+	}
+	dispatch_async(dispatch_get_main_queue(), ^{
+		self.umpDebugGeography = resolved;
+		NSLog(@"[AdMobPlugin][iOS] UMP debug geography mode set to '%@' (enum=%ld)", normalized, (long)resolved);
+	});
+}
+
+- (void)setUmpDebugTestDeviceIdentifiersFromCSV:(NSString *)deviceIDsCSV {
+	NSArray<NSString *> *parsedIdentifiers = ParseCSVDeviceIdentifiers(deviceIDsCSV);
+	dispatch_async(dispatch_get_main_queue(), ^{
+		self.umpDebugTestDeviceIdentifiers = parsedIdentifiers;
+		NSLog(@"[AdMobPlugin][iOS] UMP debug test device identifiers applied count=%lu ids=%@",
+			(unsigned long)self.umpDebugTestDeviceIdentifiers.count,
+			self.umpDebugTestDeviceIdentifiers);
 	});
 }
 
@@ -382,15 +466,27 @@ static UIViewController *RootViewController() {
 }
 
 - (void)ad:(id<GADFullScreenPresentingAd>)ad didFailToPresentFullScreenContentWithError:(NSError *)error {
-	(void)error;
+	int errorCode = error != nil ? (int)error.code : -1;
+	String errorDomain = NSStringToString(error != nil ? error.domain : nil);
+	String errorMessage = NSStringToString(error != nil ? error.localizedDescription : @"present_fullscreen_failed_without_error");
 	if (ad == self.interstitialAd) {
 		self.interstitialAd = nil;
+		NSLog(@"[AdMobPlugin][iOS] interstitial present failed code=%d domain=%@ message=%@",
+			errorCode,
+			error != nil ? SafeNSString(error.domain) : @"",
+			error != nil ? SafeNSString(error.localizedDescription) : @"");
 		self.plugin->notify_interstitial_show_failed();
+		self.plugin->notify_interstitial_show_failed_detailed(errorCode, errorDomain, errorMessage);
 		return;
 	}
 	if (ad == self.rewardedAd) {
 		self.rewardedAd = nil;
+		NSLog(@"[AdMobPlugin][iOS] rewarded present failed code=%d domain=%@ message=%@",
+			errorCode,
+			error != nil ? SafeNSString(error.domain) : @"",
+			error != nil ? SafeNSString(error.localizedDescription) : @"");
 		self.plugin->notify_rewarded_show_failed();
+		self.plugin->notify_rewarded_show_failed_detailed(errorCode, errorDomain, errorMessage);
 	}
 }
 
@@ -421,6 +517,10 @@ void AdMobPlugin::_bind_methods() {
 	ClassDB::bind_method("getTrackingAuthorizationStatus", &AdMobPlugin::getTrackingAuthorizationStatus);
 	ClassDB::bind_method("request_consent_info_update", &AdMobPlugin::request_consent_info_update);
 	ClassDB::bind_method("requestConsentInfoUpdate", &AdMobPlugin::requestConsentInfoUpdate);
+	ClassDB::bind_method("set_ump_debug_geography", &AdMobPlugin::set_ump_debug_geography);
+	ClassDB::bind_method("setUmpDebugGeography", &AdMobPlugin::setUmpDebugGeography);
+	ClassDB::bind_method("set_ump_debug_test_device_ids", &AdMobPlugin::set_ump_debug_test_device_ids);
+	ClassDB::bind_method("setUmpDebugTestDeviceIds", &AdMobPlugin::setUmpDebugTestDeviceIds);
 	ClassDB::bind_method("can_request_ads", &AdMobPlugin::can_request_ads_now);
 	ClassDB::bind_method("canRequestAds", &AdMobPlugin::canRequestAds);
 	ClassDB::bind_method("is_consent_form_available", &AdMobPlugin::is_consent_form_available);
@@ -440,12 +540,30 @@ void AdMobPlugin::_bind_methods() {
 	ADD_SIGNAL(MethodInfo(INTERSTITIAL_LOADED_SIGNAL));
 	ADD_SIGNAL(MethodInfo(INTERSTITIAL_CLOSED_SIGNAL));
 	ADD_SIGNAL(MethodInfo(INTERSTITIAL_FAILED_TO_LOAD_SIGNAL));
+	ADD_SIGNAL(MethodInfo(INTERSTITIAL_FAILED_TO_LOAD_DETAILED_SIGNAL,
+		PropertyInfo(Variant::INT, "code"),
+		PropertyInfo(Variant::STRING, "domain"),
+		PropertyInfo(Variant::STRING, "message"),
+		PropertyInfo(Variant::STRING, "ad_unit_id")));
 	ADD_SIGNAL(MethodInfo(INTERSTITIAL_SHOW_FAILED_SIGNAL));
+	ADD_SIGNAL(MethodInfo(INTERSTITIAL_SHOW_FAILED_DETAILED_SIGNAL,
+		PropertyInfo(Variant::INT, "code"),
+		PropertyInfo(Variant::STRING, "domain"),
+		PropertyInfo(Variant::STRING, "message")));
 	ADD_SIGNAL(MethodInfo(REWARDED_LOADED_SIGNAL));
 	ADD_SIGNAL(MethodInfo(REWARDED_CLOSED_SIGNAL));
 	ADD_SIGNAL(MethodInfo(REWARDED_EARNED_SIGNAL));
 	ADD_SIGNAL(MethodInfo(REWARDED_FAILED_TO_LOAD_SIGNAL));
+	ADD_SIGNAL(MethodInfo(REWARDED_FAILED_TO_LOAD_DETAILED_SIGNAL,
+		PropertyInfo(Variant::INT, "code"),
+		PropertyInfo(Variant::STRING, "domain"),
+		PropertyInfo(Variant::STRING, "message"),
+		PropertyInfo(Variant::STRING, "ad_unit_id")));
 	ADD_SIGNAL(MethodInfo(REWARDED_SHOW_FAILED_SIGNAL));
+	ADD_SIGNAL(MethodInfo(REWARDED_SHOW_FAILED_DETAILED_SIGNAL,
+		PropertyInfo(Variant::INT, "code"),
+		PropertyInfo(Variant::STRING, "domain"),
+		PropertyInfo(Variant::STRING, "message")));
 	ADD_SIGNAL(MethodInfo(CONSENT_INFO_UPDATED_SIGNAL));
 	ADD_SIGNAL(MethodInfo(CONSENT_FORM_SHOWN_SIGNAL));
 	ADD_SIGNAL(MethodInfo(CONSENT_FORM_DISMISSED_SIGNAL));
@@ -564,6 +682,22 @@ void AdMobPlugin::requestConsentInfoUpdate() {
 	request_consent_info_update();
 }
 
+void AdMobPlugin::set_ump_debug_geography(String mode) {
+	[bridge setUmpDebugGeographyModeFromString:StringToNSString(mode)];
+}
+
+void AdMobPlugin::setUmpDebugGeography(String mode) {
+	set_ump_debug_geography(mode);
+}
+
+void AdMobPlugin::set_ump_debug_test_device_ids(String device_ids_csv) {
+	[bridge setUmpDebugTestDeviceIdentifiersFromCSV:StringToNSString(device_ids_csv)];
+}
+
+void AdMobPlugin::setUmpDebugTestDeviceIds(String device_ids_csv) {
+	set_ump_debug_test_device_ids(device_ids_csv);
+}
+
 bool AdMobPlugin::can_request_ads_now() const {
 	return can_request_ads;
 }
@@ -640,9 +774,17 @@ void AdMobPlugin::notify_interstitial_failed_to_load() {
 	emit_signal(INTERSTITIAL_FAILED_TO_LOAD_SIGNAL);
 }
 
+void AdMobPlugin::notify_interstitial_failed_to_load_detailed(int code, const String &domain, const String &message, const String &ad_unit_id) {
+	emit_signal(INTERSTITIAL_FAILED_TO_LOAD_DETAILED_SIGNAL, code, domain, message, ad_unit_id);
+}
+
 void AdMobPlugin::notify_interstitial_show_failed() {
 	interstitial_loaded = false;
 	emit_signal(INTERSTITIAL_SHOW_FAILED_SIGNAL);
+}
+
+void AdMobPlugin::notify_interstitial_show_failed_detailed(int code, const String &domain, const String &message) {
+	emit_signal(INTERSTITIAL_SHOW_FAILED_DETAILED_SIGNAL, code, domain, message);
 }
 
 void AdMobPlugin::notify_rewarded_loaded() {
@@ -664,9 +806,17 @@ void AdMobPlugin::notify_rewarded_failed_to_load() {
 	emit_signal(REWARDED_FAILED_TO_LOAD_SIGNAL);
 }
 
+void AdMobPlugin::notify_rewarded_failed_to_load_detailed(int code, const String &domain, const String &message, const String &ad_unit_id) {
+	emit_signal(REWARDED_FAILED_TO_LOAD_DETAILED_SIGNAL, code, domain, message, ad_unit_id);
+}
+
 void AdMobPlugin::notify_rewarded_show_failed() {
 	rewarded_loaded = false;
 	emit_signal(REWARDED_SHOW_FAILED_SIGNAL);
+}
+
+void AdMobPlugin::notify_rewarded_show_failed_detailed(int code, const String &domain, const String &message) {
+	emit_signal(REWARDED_SHOW_FAILED_DETAILED_SIGNAL, code, domain, message);
 }
 
 void AdMobPlugin::set_tracking_authorization_status(int status) {

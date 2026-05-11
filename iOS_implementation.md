@@ -127,17 +127,27 @@ Current native scope:
   - `is_privacy_options_form_available()`
   - `show_privacy_options_form()`
 - snake_case and camelCase wrappers
-- same emitted signal names as Android:
+- emitted compatibility + detailed signals:
   - `initialized`
   - `interstitial_loaded`
   - `interstitial_closed`
   - `interstitial_failed_to_load`
+  - `interstitial_failed_to_load_detailed(code, domain, message, ad_unit_id)`
   - `interstitial_show_failed`
+  - `interstitial_show_failed_detailed(code, domain, message)`
   - `rewarded_loaded`
   - `rewarded_closed`
   - `rewarded_earned`
   - `rewarded_failed_to_load`
+  - `rewarded_failed_to_load_detailed(code, domain, message, ad_unit_id)`
   - `rewarded_show_failed`
+  - `rewarded_show_failed_detailed(code, domain, message)`
+
+Compatibility/migration behavior:
+
+- Legacy failure signals are still emitted, so existing Android-parity handlers continue to work.
+- Detailed signals are additive and intended for richer telemetry/debugging.
+- Some show-failure callbacks can use synthetic values (for example `code=-1`) if the failure happens before an SDK-level `NSError` is available.
 
 ### 4. Build verification already done
 

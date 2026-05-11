@@ -299,12 +299,16 @@ Important:
 | `interstitial_loaded` | Interstitial loaded and ready to show. |
 | `interstitial_closed` | Interstitial dismissed by the user. |
 | `interstitial_failed_to_load` | Interstitial load failed. |
+| `interstitial_failed_to_load_detailed(code, domain, message, ad_unit_id)` | Interstitial load failed with detailed error context. |
 | `interstitial_show_failed` | Interstitial show failed. |
+| `interstitial_show_failed_detailed(code, domain, message)` | Interstitial show failed with detailed error context. |
 | `rewarded_loaded` | Rewarded ad loaded and ready to show. |
 | `rewarded_closed` | Rewarded ad dismissed by the user. |
 | `rewarded_earned` | User earned reward callback fired. |
 | `rewarded_failed_to_load` | Rewarded ad load failed. |
+| `rewarded_failed_to_load_detailed(code, domain, message, ad_unit_id)` | Rewarded load failed with detailed error context. |
 | `rewarded_show_failed` | Rewarded ad show failed. |
+| `rewarded_show_failed_detailed(code, domain, message)` | Rewarded show failed with detailed error context. |
 | `paid_event` | Impression-level ad revenue callback (`ad_type`, `ad_unit_id`, `value_micros`, `currency_code`, `precision_type`). |
 | `consent_info_updated` | iOS UMP consent info update callback. |
 | `consent_form_shown` | iOS UMP consent form shown callback. |
@@ -314,6 +318,12 @@ Important:
 | `privacy_options_form_shown` | iOS UMP privacy-options form shown callback. |
 | `privacy_options_form_dismissed` | iOS UMP privacy-options form dismissed callback. |
 | `privacy_options_form_finished` | iOS UMP privacy-options flow finished callback. |
+
+Compatibility note:
+
+- Existing projects remain compatible: legacy failure signals are still emitted.
+- The new `*_detailed` signals are additive and can be adopted gradually for richer logging/retry logic.
+- Some show-failure paths may emit synthetic values (for example `code=-1` with plugin-defined domain/reason) when failure occurs before a Google Mobile Ads SDK error object is available.
 
 ---
 

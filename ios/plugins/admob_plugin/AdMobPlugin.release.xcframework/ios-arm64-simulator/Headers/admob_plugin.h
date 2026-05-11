@@ -62,6 +62,10 @@ public:
 
 	void request_consent_info_update();
 	void requestConsentInfoUpdate();
+	void set_ump_debug_geography(String mode);
+	void setUmpDebugGeography(String mode);
+	void set_ump_debug_test_device_ids(String device_ids_csv);
+	void setUmpDebugTestDeviceIds(String device_ids_csv);
 	bool can_request_ads_now() const;
 	bool canRequestAds() const;
 	bool is_consent_form_available() const;
@@ -81,12 +85,16 @@ public:
 	void notify_interstitial_loaded();
 	void notify_interstitial_closed();
 	void notify_interstitial_failed_to_load();
+	void notify_interstitial_failed_to_load_detailed(int code, const String &domain, const String &message, const String &ad_unit_id);
 	void notify_interstitial_show_failed();
+	void notify_interstitial_show_failed_detailed(int code, const String &domain, const String &message);
 	void notify_rewarded_loaded();
 	void notify_rewarded_closed();
 	void notify_rewarded_earned();
 	void notify_rewarded_failed_to_load();
+	void notify_rewarded_failed_to_load_detailed(int code, const String &domain, const String &message, const String &ad_unit_id);
 	void notify_rewarded_show_failed();
+	void notify_rewarded_show_failed_detailed(int code, const String &domain, const String &message);
 	void set_tracking_authorization_status(int status);
 	void notify_consent_info_updated();
 	void notify_consent_form_shown();

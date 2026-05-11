@@ -14,6 +14,9 @@ const ANDROID_REWARDED_ID_SETTING := "admob/android/rewarded_id"
 const IOS_APP_ID_SETTING := "admob/ios/app_id"
 const IOS_INTERSTITIAL_ID_SETTING := "admob/ios/interstitial_id"
 const IOS_REWARDED_ID_SETTING := "admob/ios/rewarded_id"
+const IOS_TEST_DEVICE_IDS_SETTING := "admob/ios/test_device_ids"
+const IOS_UMP_DEBUG_GEOGRAPHY_SETTING := "admob/ios/ump_debug_geography"
+const IOS_UMP_DEBUG_TEST_DEVICE_IDS_SETTING := "admob/ios/ump_debug_test_device_ids"
 const IOS_ATT_MESSAGE_SETTING := "admob/ios/att_message"
 
 var export_plugin: AdMobExportPlugin
@@ -116,6 +119,27 @@ class AdMobExportPlugin extends EditorExportPlugin:
 					"type": TYPE_STRING,
 				},
 				"default_value": ADMOB_TEST_REWARDED_ID,
+			},
+			{
+				"option": {
+					"name": IOS_TEST_DEVICE_IDS_SETTING,
+					"type": TYPE_STRING,
+				},
+				"default_value": "",
+			},
+			{
+				"option": {
+					"name": IOS_UMP_DEBUG_GEOGRAPHY_SETTING,
+					"type": TYPE_STRING,
+				},
+				"default_value": "disabled",
+			},
+			{
+				"option": {
+					"name": IOS_UMP_DEBUG_TEST_DEVICE_IDS_SETTING,
+					"type": TYPE_STRING,
+				},
+				"default_value": "",
 			},
 			{
 				"option": {
