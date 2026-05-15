@@ -44,7 +44,8 @@ class AdMobExportPlugin extends EditorExportPlugin:
 
 	func _get_android_dependencies(platform: EditorExportPlatform, debug: bool) -> PackedStringArray:
 		return PackedStringArray([
-			"com.google.android.gms:play-services-ads:24.1.0"
+			"com.google.android.gms:play-services-ads:24.1.0",
+			"com.google.android.ump:user-messaging-platform:4.0.0"
 		])
 
 	func _get_android_maven_repos(platform: EditorExportPlatform, debug: bool) -> PackedStringArray:
@@ -66,7 +67,8 @@ class AdMobExportPlugin extends EditorExportPlugin:
 	func _get_android_permissions(platform: EditorExportPlatform, debug: bool) -> PackedStringArray:
 		return PackedStringArray([
 			"android.permission.INTERNET",
-			"android.permission.ACCESS_NETWORK_STATE"
+			"android.permission.ACCESS_NETWORK_STATE",
+			"com.google.android.gms.permission.AD_ID"
 		])
 
 	func _get_export_options(platform: EditorExportPlatform) -> Array[Dictionary]:
