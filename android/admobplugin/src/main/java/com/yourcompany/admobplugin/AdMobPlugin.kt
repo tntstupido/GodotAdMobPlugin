@@ -31,6 +31,7 @@ class AdMobPlugin(godot: Godot) : GodotPlugin(godot) {
         private const val UMP_DEBUG_GEOGRAPHY_DISABLED = "disabled"
         private const val UMP_DEBUG_GEOGRAPHY_EEA = "eea"
         private const val UMP_DEBUG_GEOGRAPHY_NOT_EEA = "not_eea"
+        private const val UMP_DEBUG_GEOGRAPHY_REGULATED_US_STATE = "regulated_us_state"
     }
 
     private var interstitialAd: InterstitialAd? = null
@@ -38,6 +39,7 @@ class AdMobPlugin(godot: Godot) : GodotPlugin(godot) {
 
     private var umpDebugGeographyMode: String = UMP_DEBUG_GEOGRAPHY_DISABLED
     private var umpDebugTestDeviceHashedId: String? = null
+    private var tagForUnderAgeOfConsent: Boolean = false
 
     override fun getPluginName(): String = "AdMobPlugin"
 
@@ -67,7 +69,8 @@ class AdMobPlugin(godot: Godot) : GodotPlugin(godot) {
         SignalInfo("consent_error", String::class.java),
         SignalInfo("privacy_options_form_shown"),
         SignalInfo("privacy_options_form_dismissed"),
-        SignalInfo("privacy_options_form_finished")
+        SignalInfo("privacy_options_form_finished"),
+        SignalInfo("ad_inspector_closed", String::class.java)
     )
 
     @UsedByGodot
@@ -114,6 +117,26 @@ class AdMobPlugin(godot: Godot) : GodotPlugin(godot) {
     }
 
     @UsedByGodot
+    fun set_tag_for_under_age_of_consent(enabled: Boolean) {
+        tagForUnderAgeOfConsent = enabled
+        val requestConfiguration = MobileAds.getRequestConfiguration()
+        val updatedConfiguration = requestConfiguration
+            .toBuilder()
+            .setTagForUnderAgeOfConsent(
+                if (enabled) RequestConfiguration.TAG_FOR_UNDER_AGE_OF_CONSENT_TRUE
+                else RequestConfiguration.TAG_FOR_UNDER_AGE_OF_CONSENT_FALSE
+            )
+            .build()
+        MobileAds.setRequestConfiguration(updatedConfiguration)
+        Log.d(TAG, "set_tag_for_under_age_of_consent: enabled=$enabled")
+    }
+
+    @UsedByGodot
+    fun setTagForUnderAgeOfConsent(enabled: Boolean) {
+        set_tag_for_under_age_of_consent(enabled)
+    }
+
+    @UsedByGodot
     fun set_ump_debug_geography(mode: String) {
         val normalized = mode.trim().lowercase()
         umpDebugGeographyMode = when (normalized) {
@@ -124,6 +147,12 @@ class AdMobPlugin(godot: Godot) : GodotPlugin(godot) {
             "debug_geography_not_eea",
             "non_eea",
             "not-eea" -> UMP_DEBUG_GEOGRAPHY_NOT_EEA
+
+            UMP_DEBUG_GEOGRAPHY_REGULATED_US_STATE,
+            "debug_geography_regulated_us_state",
+            "regulated-us-state",
+            "us_regulated_state",
+            "us_state_regulated" -> UMP_DEBUG_GEOGRAPHY_REGULATED_US_STATE
 
             UMP_DEBUG_GEOGRAPHY_DISABLED,
             "debug_geography_disabled",
@@ -313,6 +342,32 @@ class AdMobPlugin(godot: Godot) : GodotPlugin(godot) {
     }
 
     @UsedByGodot
+    fun open_ad_inspector() {
+        val currentActivity: Activity = activity ?: run {
+            Log.e(TAG, "open_ad_inspector: activity is null")
+            emitSignal("ad_inspector_closed", "activity_null")
+            return
+        }
+
+        currentActivity.runOnUiThread {
+            MobileAds.openAdInspector(currentActivity) { error ->
+                if (error != null) {
+                    val message = error.message ?: "unknown_error"
+                    Log.e(TAG, "open_ad_inspector failed: $message")
+                    emitSignal("ad_inspector_closed", message)
+                } else {
+                    emitSignal("ad_inspector_closed", "")
+                }
+            }
+        }
+    }
+
+    @UsedByGodot
+    fun openAdInspector() {
+        open_ad_inspector()
+    }
+
+    @UsedByGodot
     fun load_interstitial(adUnitId: String) {
         val currentActivity: Activity = activity ?: run {
             Log.e(TAG, "load_interstitial: activity is null")
@@ -479,10 +534,12 @@ class AdMobPlugin(godot: Godot) : GodotPlugin(godot) {
 
     private fun buildConsentRequestParameters(currentActivity: Activity): ConsentRequestParameters {
         val requestBuilder = ConsentRequestParameters.Builder()
+            .setTagForUnderAgeOfConsent(tagForUnderAgeOfConsent)
 
         val debugGeography = when (umpDebugGeographyMode) {
             UMP_DEBUG_GEOGRAPHY_EEA -> ConsentDebugSettings.DebugGeography.DEBUG_GEOGRAPHY_EEA
             UMP_DEBUG_GEOGRAPHY_NOT_EEA -> ConsentDebugSettings.DebugGeography.DEBUG_GEOGRAPHY_NOT_EEA
+            UMP_DEBUG_GEOGRAPHY_REGULATED_US_STATE -> ConsentDebugSettings.DebugGeography.DEBUG_GEOGRAPHY_REGULATED_US_STATE
             else -> ConsentDebugSettings.DebugGeography.DEBUG_GEOGRAPHY_DISABLED
         }
 
