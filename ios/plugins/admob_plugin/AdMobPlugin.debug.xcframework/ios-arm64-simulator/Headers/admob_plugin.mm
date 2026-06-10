@@ -73,6 +73,7 @@ static NSArray<NSString *> *ParseCSVDeviceIdentifiers(NSString *csv) {
 @property(nonatomic, copy) NSArray<NSString *> *testDeviceIdentifiers;
 @property(nonatomic, assign) UMPDebugGeography umpDebugGeography;
 @property(nonatomic, copy) NSArray<NSString *> *umpDebugTestDeviceIdentifiers;
+@property(nonatomic, strong) dispatch_source_t rewardedCloseWatchdog;
 
 - (instancetype)initWithPlugin:(AdMobPlugin *)plugin;
 - (NSError *)initializeWithAppID:(NSString *)appID testMode:(BOOL)testMode;
@@ -83,6 +84,8 @@ static NSArray<NSString *> *ParseCSVDeviceIdentifiers(NSString *csv) {
 - (BOOL)showInterstitial;
 - (void)loadRewardedWithAdUnitID:(NSString *)adUnitID;
 - (BOOL)showRewarded;
+- (void)armRewardedCloseWatchdog;
+- (void)disarmRewardedCloseWatchdog;
 - (void)requestTrackingAuthorization;
 - (int)trackingAuthorizationStatus;
 - (void)requestConsentInfoUpdate;
@@ -119,6 +122,44 @@ static UIViewController *RootViewController() {
 	return nil;
 }
 
+// Walks to the topmost presented view controller. Using the bare key window's
+// rootViewController at show time can fail on Godot iOS: if a system overlay
+// (AVPlayer, ATT prompt) is being torn down, iOS may hand back a non-presentable
+// VC and the AdMob dismiss transition will block indefinitely. Resolving the
+// chain on the main thread when we actually present (and again on dismiss)
+// gives the SDK a presentable target.
+static UIViewController *TopMostPresentedViewController() {
+	__block UIViewController *topmost = nil;
+	void (^resolve)(void) = ^{
+		for (UIScene *scene in UIApplication.sharedApplication.connectedScenes) {
+			if (![scene isKindOfClass:[UIWindowScene class]]) {
+				continue;
+			}
+			UIWindowScene *windowScene = (UIWindowScene *)scene;
+			for (UIWindow *window in windowScene.windows) {
+				if (!window.isKeyWindow) {
+					continue;
+				}
+				UIViewController *vc = window.rootViewController;
+				while (vc != nil && vc.presentedViewController != nil) {
+					vc = vc.presentedViewController;
+				}
+				if (vc != nil) {
+					topmost = vc;
+					return;
+				}
+			}
+		}
+		topmost = nil;
+	};
+	if (NSThread.isMainThread) {
+		resolve();
+	} else {
+		dispatch_sync(dispatch_get_main_queue(), resolve);
+	}
+	return topmost;
+}
+
 @implementation AdMobIOSBridge
 
 - (instancetype)initWithPlugin:(AdMobPlugin *)plugin {
@@ -128,8 +169,45 @@ static UIViewController *RootViewController() {
 		_testDeviceIdentifiers = @[];
 		_umpDebugGeography = UMPDebugGeographyDisabled;
 		_umpDebugTestDeviceIdentifiers = @[];
+		_rewardedCloseWatchdog = nil;
 	}
 	return self;
+}
+
+- (void)armRewardedCloseWatchdog {
+	static const uint64_t kWatchdogTimeoutSec = 60;
+	[self disarmRewardedCloseWatchdog];
+	dispatch_source_t timer = dispatch_source_create(DISPATCH_SOURCE_TYPE_TIMER, 0, 0, dispatch_get_main_queue());
+	if (timer == nil) {
+		return;
+	}
+	dispatch_source_set_timer(timer,
+		dispatch_time(DISPATCH_TIME_NOW, kWatchdogTimeoutSec * NSEC_PER_SEC),
+		DISPATCH_TIME_FOREVER,
+		1 * NSEC_PER_SEC);
+	__block AdMobIOSBridge *blockSelf = self;
+	dispatch_source_set_event_handler(timer, ^{
+		AdMobIOSBridge *strongSelf = blockSelf;
+		if (strongSelf == nil) {
+			return;
+		}
+		NSLog(@"[AdMobPlugin][iOS] rewarded close watchdog fired after %llus — forcing dismiss notification", (unsigned long long)kWatchdogTimeoutSec);
+		if (strongSelf.rewardedAd != nil) {
+			strongSelf.rewardedAd = nil;
+		}
+		[strongSelf disarmRewardedCloseWatchdog];
+		blockSelf = nil;
+		strongSelf.plugin->notify_rewarded_closed();
+	});
+	dispatch_resume(timer);
+	_rewardedCloseWatchdog = timer;
+}
+
+- (void)disarmRewardedCloseWatchdog {
+	if (_rewardedCloseWatchdog != nil) {
+		dispatch_source_cancel(_rewardedCloseWatchdog);
+		_rewardedCloseWatchdog = nil;
+	}
 }
 
 - (void)applyTestDeviceConfiguration {
@@ -241,6 +319,7 @@ static UIViewController *RootViewController() {
 	if (@available(iOS 14, *)) {
 		self.plugin->set_tracking_authorization_status((int)ATTrackingManager.trackingAuthorizationStatus);
 	}
+	[self disarmRewardedCloseWatchdog];
 	dispatch_async(dispatch_get_main_queue(), ^{
 		[self applyTestDeviceConfiguration];
 		NSLog(@"[AdMobPlugin][iOS] load rewarded ad_unit=%@ test_device_count=%lu",
@@ -273,7 +352,9 @@ static UIViewController *RootViewController() {
 }
 
 - (BOOL)showRewarded {
-	UIViewController *viewController = RootViewController();
+	// Resolve the topmost view controller synchronously on the calling thread.
+	// TopMostPresentedViewController internally hops to main if needed.
+	UIViewController *viewController = TopMostPresentedViewController();
 	if (self.rewardedAd == nil || viewController == nil) {
 		NSString *reason = self.rewardedAd == nil ? @"rewarded_not_loaded" : @"root_view_controller_missing";
 		NSLog(@"[AdMobPlugin][iOS] rewarded show failed reason=%@", reason);
@@ -282,10 +363,19 @@ static UIViewController *RootViewController() {
 		return NO;
 	}
 
+	[self armRewardedCloseWatchdog];
 	dispatch_async(dispatch_get_main_queue(), ^{
-		[self.rewardedAd presentFromRootViewController:viewController
+		// Re-resolve on main at the moment of present. The view hierarchy can
+		// change between call time and dispatch time (ATT, alert, scene swap).
+		UIViewController *presenter = TopMostPresentedViewController() ?: viewController;
+		[self.rewardedAd presentFromRootViewController:presenter
 							 userDidEarnRewardHandler:^{
-			self.plugin->notify_rewarded_earned();
+			// SDK contract says this fires on the main thread, but some
+			// mediation adapters deliver from a background queue. Hop to main
+			// before emitting to Godot to avoid deadlocking the script VM.
+			dispatch_async(dispatch_get_main_queue(), ^{
+				self.plugin->notify_rewarded_earned();
+			});
 		}];
 	});
 	return YES;
@@ -467,15 +557,21 @@ static UIViewController *RootViewController() {
 }
 
 - (void)adDidDismissFullScreenContent:(id<GADFullScreenPresentingAd>)ad {
-	if (ad == self.interstitialAd) {
-		self.interstitialAd = nil;
-		self.plugin->notify_interstitial_closed();
-		return;
-	}
-	if (ad == self.rewardedAd) {
-		self.rewardedAd = nil;
-		self.plugin->notify_rewarded_closed();
-	}
+	// Some mediation paths invoke the full-screen content delegate off the
+	// main thread. emit_signal into a Godot Object from a non-main thread
+	// can deadlock the script VM. Always re-enter main before notifying.
+	dispatch_async(dispatch_get_main_queue(), ^{
+		if (ad == self.interstitialAd) {
+			self.interstitialAd = nil;
+			self.plugin->notify_interstitial_closed();
+			return;
+		}
+		if (ad == self.rewardedAd) {
+			self.rewardedAd = nil;
+			[self disarmRewardedCloseWatchdog];
+			self.plugin->notify_rewarded_closed();
+		}
+	});
 }
 
 - (void)ad:(id<GADFullScreenPresentingAd>)ad didFailToPresentFullScreenContentWithError:(NSError *)error {

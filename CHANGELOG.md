@@ -1,5 +1,28 @@
 # Changelog
 
+## v1.3.7 - 2026-06-10
+
+### Fixed
+- Fixed iOS rewarded-ad freeze where `adDidDismissFullScreenContent` could
+  fail to fire after the reward credit, leaving the Godot UI stalled until
+  the app was backgrounded and re-foregrounded.
+  - Root cause: the rewarded ad was being presented against a view controller
+    that was not the topmost presenter at the moment of the SDK's dismiss
+    transition (typical Godot iOS case where a system overlay — ATT, AVPlayer
+    pre-roll, etc. — disrupts the key-window chain). The AdMob SDK then
+    blocked waiting for a dismiss callback that iOS would only deliver after
+    a scene re-resolve.
+  - Fix 1: introduced `TopMostPresentedViewController()` helper that walks
+    the presented-VC chain of the key window and is re-resolved on the main
+    queue at the moment of present.
+  - Fix 2: wrapped `adDidDismissFullScreenContent` (and the
+    `userDidEarnRewardHandler` callback) in `dispatch_async(main, ...)` so
+    Godot signal emission always happens on the script VM thread — defends
+    against mediation adapters that deliver from a background queue.
+  - Fix 3: added a 60s close watchdog timer armed at show time that force-
+    fires `notify_rewarded_closed` if the SDK dismiss never lands, converting
+    the worst-case full freeze into a clean "ad auto-dismissed" recovery.
+
 ## v1.3.6 - 2026-05-15
 
 ### Added
