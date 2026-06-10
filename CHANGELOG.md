@@ -1,5 +1,30 @@
 # Changelog
 
+## v1.3.9.1 - 2026-06-10
+
+### Reverted
+- **Reverted the v1.3.7 `TopMostPresentedViewController` helper back to the
+  v1.3.6 `RootViewController` behavior.** Walking the
+  `presentedViewController` chain was the wrong thing to pass to
+  `presentFromRootViewController:` — Google's API expects the app's
+  own root VC (the parent of the presented ad), not the AdMob SDK's
+  own already-presented modal. Passing the SDK's own modal as the
+  "root" broke the view hierarchy contract and was the actual cause
+  of the WebKit.WebContent: 113 system error in WebView-backed
+  rewarded creatives (the freeze, the music-over-ad, the "ad closed
+  itself" symptoms). The user pointed out that ads were working
+  perfectly fine before my v1.3.7 changes — they were right.
+- v1.3.9.1 keeps the v1.3.7 `dispatch_async(main, ...)` defensive
+  wrapping around the dismiss handler and reward handler. That's
+  defensive only (the SDK contract is that these fire on the main
+  thread, but some mediation adapters don't honor the contract) and
+  doesn't change the view hierarchy.
+
+### v1.3.9 already
+- Removed the rewarded-ad close watchdog entirely.
+- v1.3.9.1 + v1.3.6 + the defensive `dispatch_async(main, ...)`
+  wrapping = the new baseline.
+
 ## v1.3.9 - 2026-06-10
 
 ### Removed

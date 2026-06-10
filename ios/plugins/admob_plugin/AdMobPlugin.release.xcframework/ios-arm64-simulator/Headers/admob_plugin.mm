@@ -98,6 +98,13 @@ static NSArray<NSString *> *ParseCSVDeviceIdentifiers(NSString *csv) {
 
 @end
 
+// Returns the key window's rootViewController. This is what the Google
+// Mobile Ads SDK expects to receive from `presentFromRootViewController:`:
+// the parent VC of the presented ad. Passing the AdMob SDK's own already-
+// presented VC (i.e. walking the presentedViewController chain) breaks
+// the view hierarchy contract and triggers the iOS WebKit.WebContent: 113
+// system error in WebView-backed creatives. Keep this simple: return the
+// app's own root VC.
 static UIViewController *RootViewController() {
 	for (UIScene *scene in UIApplication.sharedApplication.connectedScenes) {
 		if (![scene isKindOfClass:[UIWindowScene class]]) {
@@ -117,44 +124,6 @@ static UIViewController *RootViewController() {
 		return delegateWindow.rootViewController;
 	}
 	return nil;
-}
-
-// Walks to the topmost presented view controller. Using the bare key window's
-// rootViewController at show time can fail on Godot iOS: if a system overlay
-// (AVPlayer, ATT prompt) is being torn down, iOS may hand back a non-presentable
-// VC and the AdMob dismiss transition will block indefinitely. Resolving the
-// chain on the main thread when we actually present (and again on dismiss)
-// gives the SDK a presentable target.
-static UIViewController *TopMostPresentedViewController() {
-	__block UIViewController *topmost = nil;
-	void (^resolve)(void) = ^{
-		for (UIScene *scene in UIApplication.sharedApplication.connectedScenes) {
-			if (![scene isKindOfClass:[UIWindowScene class]]) {
-				continue;
-			}
-			UIWindowScene *windowScene = (UIWindowScene *)scene;
-			for (UIWindow *window in windowScene.windows) {
-				if (!window.isKeyWindow) {
-					continue;
-				}
-				UIViewController *vc = window.rootViewController;
-				while (vc != nil && vc.presentedViewController != nil) {
-					vc = vc.presentedViewController;
-				}
-				if (vc != nil) {
-					topmost = vc;
-					return;
-				}
-			}
-		}
-		topmost = nil;
-	};
-	if (NSThread.isMainThread) {
-		resolve();
-	} else {
-		dispatch_sync(dispatch_get_main_queue(), resolve);
-	}
-	return topmost;
 }
 
 @implementation AdMobIOSBridge
@@ -311,9 +280,7 @@ static UIViewController *TopMostPresentedViewController() {
 }
 
 - (BOOL)showRewarded {
-	// Resolve the topmost view controller synchronously on the calling thread.
-	// TopMostPresentedViewController internally hops to main if needed.
-	UIViewController *viewController = TopMostPresentedViewController();
+	UIViewController *viewController = RootViewController();
 	if (self.rewardedAd == nil || viewController == nil) {
 		NSString *reason = self.rewardedAd == nil ? @"rewarded_not_loaded" : @"root_view_controller_missing";
 		NSLog(@"[AdMobPlugin][iOS] rewarded show failed reason=%@", reason);
@@ -323,10 +290,7 @@ static UIViewController *TopMostPresentedViewController() {
 	}
 
 	dispatch_async(dispatch_get_main_queue(), ^{
-		// Re-resolve on main at the moment of present. The view hierarchy can
-		// change between call time and dispatch time (ATT, alert, scene swap).
-		UIViewController *presenter = TopMostPresentedViewController() ?: viewController;
-		[self.rewardedAd presentFromRootViewController:presenter
+		[self.rewardedAd presentFromRootViewController:viewController
 							 userDidEarnRewardHandler:^{
 			// SDK contract says this fires on the main thread, but some
 			// mediation adapters deliver from a background queue. Hop to main
