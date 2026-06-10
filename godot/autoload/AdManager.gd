@@ -147,6 +147,15 @@ func request_tracking_authorization() -> void:
 	if _plugin.has_method("requestTrackingAuthorization"):
 		_plugin.call("requestTrackingAuthorization")
 
+func set_tag_for_under_age_of_consent(enabled: bool) -> void:
+	if _plugin == null:
+		return
+	if _plugin.has_method("set_tag_for_under_age_of_consent"):
+		_plugin.call("set_tag_for_under_age_of_consent", enabled)
+		return
+	if _plugin.has_method("setTagForUnderAgeOfConsent"):
+		_plugin.call("setTagForUnderAgeOfConsent", enabled)
+
 func get_tracking_authorization_status() -> int:
 	if _plugin == null:
 		return -1

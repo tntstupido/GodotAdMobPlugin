@@ -76,6 +76,7 @@ AdMobPlugin/
   - UMP helpers exposed to GDScript
   - explicit UMP privacy-options form helper exposed to GDScript
   - ATT helpers exposed to GDScript
+  - under-age consent request tagging helper exposed to GDScript (`set_tag_for_under_age_of_consent`)
   - ATT prompt is manual-only (not auto-triggered by ad loading)
   - consuming projects may keep this as plugin capability only; a game does not need to expose a manual privacy-options button if its validated UX is fully covered by automatic UMP/ATT flow
 - Native iOS source and build workflow remain under `ios/native/AdMobPlugin/`.
@@ -244,6 +245,7 @@ Important:
 | `is_rewarded_loaded() -> bool` | Returns whether a rewarded ad is ready to show. |
 | `request_tracking_authorization()` | Calls into the native ATT prompt helper when the active platform plugin exposes it. |
 | `get_tracking_authorization_status() -> int` | Returns native ATT status when exposed, otherwise `-1`. |
+| `set_tag_for_under_age_of_consent(enabled: bool)` | Sets iOS AdMob request configuration under-age flags (`tagForUnderAgeOfConsent` + `tagForChildDirectedTreatment`). |
 | `request_consent_info_update()` | Triggers UMP consent info update on iOS when supported. |
 | `can_request_ads() -> bool` | Returns UMP ad-request eligibility state on iOS when supported. |
 | `is_consent_form_available() -> bool` | Returns whether a UMP consent form is available on iOS when supported. |
@@ -266,6 +268,7 @@ Important:
 | `is_rewarded_loaded() -> bool` / `isRewardedLoaded() -> bool` | Returns rewarded loaded state. |
 | `request_tracking_authorization()` / `requestTrackingAuthorization()` | iOS ATT authorization request helper. |
 | `get_tracking_authorization_status() -> int` / `getTrackingAuthorizationStatus() -> int` | iOS ATT status helper. |
+| `set_tag_for_under_age_of_consent(enabled: bool)` / `setTagForUnderAgeOfConsent(enabled: bool)` | iOS request-configuration helper for under-age consent handling (`tagForUnderAgeOfConsent` + `tagForChildDirectedTreatment`). |
 | `request_consent_info_update()` / `requestConsentInfoUpdate()` | iOS UMP consent info update helper. |
 | `can_request_ads() -> bool` / `canRequestAds() -> bool` | iOS UMP ad-request eligibility helper. |
 | `is_consent_form_available() -> bool` / `isConsentFormAvailable() -> bool` | iOS UMP consent form availability helper. |

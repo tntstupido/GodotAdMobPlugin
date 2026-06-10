@@ -78,6 +78,7 @@ static NSArray<NSString *> *ParseCSVDeviceIdentifiers(NSString *csv) {
 - (NSError *)initializeWithAppID:(NSString *)appID testMode:(BOOL)testMode;
 - (void)setTestDeviceIdentifiersFromCSV:(NSString *)deviceIDsCSV;
 - (void)applyTestDeviceConfiguration;
+- (void)setTagForUnderAgeOfConsentEnabled:(BOOL)enabled;
 - (void)loadInterstitialWithAdUnitID:(NSString *)adUnitID;
 - (BOOL)showInterstitial;
 - (void)loadRewardedWithAdUnitID:(NSString *)adUnitID;
@@ -134,6 +135,18 @@ static UIViewController *RootViewController() {
 - (void)applyTestDeviceConfiguration {
 	NSArray<NSString *> *deviceIDs = self.testDeviceIdentifiers != nil ? self.testDeviceIdentifiers : @[];
 	GADMobileAds.sharedInstance.requestConfiguration.testDeviceIdentifiers = deviceIDs;
+}
+
+- (void)setTagForUnderAgeOfConsentEnabled:(BOOL)enabled {
+	dispatch_async(dispatch_get_main_queue(), ^{
+		NSNumber *flag = enabled ? @YES : @NO;
+		// Apply both flags for stricter under-age handling on ad requests.
+		GADMobileAds.sharedInstance.requestConfiguration.tagForUnderAgeOfConsent = flag;
+		GADMobileAds.sharedInstance.requestConfiguration.tagForChildDirectedTreatment = flag;
+		NSLog(@"[AdMobPlugin][iOS] set_tag_for_under_age_of_consent=%@ (also applied child_directed_treatment=%@)",
+			enabled ? @"true" : @"false",
+			enabled ? @"true" : @"false");
+	});
 }
 
 - (NSError *)initializeWithAppID:(NSString *)appID testMode:(BOOL)testMode {
@@ -499,6 +512,8 @@ void AdMobPlugin::_bind_methods() {
 	ClassDB::bind_method("init", &AdMobPlugin::init);
 	ClassDB::bind_method("set_test_device_ids", &AdMobPlugin::set_test_device_ids);
 	ClassDB::bind_method("setTestDeviceIds", &AdMobPlugin::setTestDeviceIds);
+	ClassDB::bind_method("set_tag_for_under_age_of_consent", &AdMobPlugin::set_tag_for_under_age_of_consent);
+	ClassDB::bind_method("setTagForUnderAgeOfConsent", &AdMobPlugin::setTagForUnderAgeOfConsent);
 	ClassDB::bind_method("load_interstitial", &AdMobPlugin::load_interstitial);
 	ClassDB::bind_method("loadInterstitial", &AdMobPlugin::loadInterstitial);
 	ClassDB::bind_method("show_interstitial", &AdMobPlugin::show_interstitial);
@@ -608,6 +623,14 @@ void AdMobPlugin::set_test_device_ids(String device_ids_csv) {
 
 void AdMobPlugin::setTestDeviceIds(String device_ids_csv) {
 	set_test_device_ids(device_ids_csv);
+}
+
+void AdMobPlugin::set_tag_for_under_age_of_consent(bool enabled) {
+	[bridge setTagForUnderAgeOfConsentEnabled:enabled];
+}
+
+void AdMobPlugin::setTagForUnderAgeOfConsent(bool enabled) {
+	set_tag_for_under_age_of_consent(enabled);
 }
 
 void AdMobPlugin::load_interstitial(String ad_unit_id) {

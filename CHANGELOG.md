@@ -1,5 +1,19 @@
 # Changelog
 
+## v1.3.6 - 2026-05-15
+
+### Added
+- Added reusable iOS under-age consent request configuration API to native plugin:
+  - `set_tag_for_under_age_of_consent(enabled)` / `setTagForUnderAgeOfConsent(enabled)`
+  - Applies both Google Mobile Ads request-configuration flags:
+    - `tagForUnderAgeOfConsent`
+    - `tagForChildDirectedTreatment`
+- Added matching wrapper method in `godot/autoload/AdManager.gd`:
+  - `set_tag_for_under_age_of_consent(enabled: bool)`
+
+### Documentation
+- Updated README status + API tables to include the new under-age consent tagging helper and behavior.
+
 ## v1.3.5 - 2026-05-10
 
 ### Documentation

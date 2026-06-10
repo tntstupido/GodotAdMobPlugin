@@ -40,6 +40,8 @@ public:
 	void init(String app_id);
 	void set_test_device_ids(String device_ids_csv);
 	void setTestDeviceIds(String device_ids_csv);
+	void set_tag_for_under_age_of_consent(bool enabled);
+	void setTagForUnderAgeOfConsent(bool enabled);
 
 	void load_interstitial(String ad_unit_id);
 	void loadInterstitial(String ad_unit_id);
