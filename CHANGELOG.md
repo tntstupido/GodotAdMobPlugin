@@ -1,5 +1,33 @@
 # Changelog
 
+## v1.3.9 - 2026-06-10
+
+### Removed
+- **Removed the rewarded-ad close watchdog entirely (v1.3.7 + v1.3.8 + v1.3.8.1).**
+  It was force-dismissing the presented view controller and force-emitting
+  `notify_rewarded_closed` after a timeout, which broke the rewarded ad
+  contract in two ways:
+  1. The force-dismiss killed the ad while the user was still watching
+     it, before `userDidEarnRewardHandler` could fire — so the user
+     never got the reward they were promised in exchange for watching.
+  2. The user perceived the force-dismiss as "the ad closed itself",
+     which is bad UX for a rewarded ad (the whole point is that the
+     user finishes watching the ad, not that it disappears early).
+- v1.3.9 keeps the v1.3.7 actual bug fixes (topmost-presented-VC
+  resolution, main-thread signal dispatch for the dismiss handler and
+  reward handler) and drops only the watchdog.
+
+### Behavior after this change
+- If the SDK's `adDidDismissFullScreenContent` never fires (the iOS
+  `WebKit.WebContent: 113` system bug or similar), the ad stays on
+  screen. The user can still recover by backgrounding and
+  re-foregrounding the app, which forces iOS to re-resolve the view
+  hierarchy and lets the SDK deliver the dismiss event.
+- If the user wants a guaranteed recovery path, the long-term fix is
+  to filter HTML5 MRAID rewarded creatives in the AdMob dashboard in
+  favor of native video ads. This is a config change, not a code
+  change — out of scope here.
+
 ## v1.3.8.1 - 2026-06-10
 
 ### Fixed

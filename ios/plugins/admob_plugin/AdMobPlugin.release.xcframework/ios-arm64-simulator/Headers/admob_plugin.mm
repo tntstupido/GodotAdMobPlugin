@@ -73,8 +73,6 @@ static NSArray<NSString *> *ParseCSVDeviceIdentifiers(NSString *csv) {
 @property(nonatomic, copy) NSArray<NSString *> *testDeviceIdentifiers;
 @property(nonatomic, assign) UMPDebugGeography umpDebugGeography;
 @property(nonatomic, copy) NSArray<NSString *> *umpDebugTestDeviceIdentifiers;
-@property(nonatomic, strong) dispatch_source_t rewardedCloseWatchdog;
-@property(nonatomic, copy) dispatch_block_t rewardedHardFallbackBlock;
 
 - (instancetype)initWithPlugin:(AdMobPlugin *)plugin;
 - (NSError *)initializeWithAppID:(NSString *)appID testMode:(BOOL)testMode;
@@ -85,8 +83,6 @@ static NSArray<NSString *> *ParseCSVDeviceIdentifiers(NSString *csv) {
 - (BOOL)showInterstitial;
 - (void)loadRewardedWithAdUnitID:(NSString *)adUnitID;
 - (BOOL)showRewarded;
-- (void)armRewardedCloseWatchdog;
-- (void)disarmRewardedCloseWatchdog;
 - (void)requestTrackingAuthorization;
 - (int)trackingAuthorizationStatus;
 - (void)requestConsentInfoUpdate;
@@ -170,108 +166,8 @@ static UIViewController *TopMostPresentedViewController() {
 		_testDeviceIdentifiers = @[];
 		_umpDebugGeography = UMPDebugGeographyDisabled;
 		_umpDebugTestDeviceIdentifiers = @[];
-		_rewardedCloseWatchdog = nil;
 	}
 	return self;
-}
-
-- (void)armRewardedCloseWatchdog {
-	// Tuned down from 60s (v1.3.7) to 30s (v1.3.8). The 60s value was chosen
-	// defensively; in practice a stuck AdMob rewarded ad is unrecoverable
-	// much sooner than that and the user is stuck waiting. 30s is still a
-	// long wait but the dismissal animation (below) means the visual exits
-	// immediately on the watchdog firing, so the user can interact with the
-	// underlying scene right away.
-	static const uint64_t kWatchdogTimeoutSec = 30;
-	// Hard-fallback grace period after the force-dismiss. If the SDK's
-	// adDidDismissFullScreenContent still doesn't fire after this window,
-	// we force-emit the close signal so the Godot side unblocks. The visual
-	// ad is already gone by now (dismiss animation completed), so the music
-	// resume happens at a moment when no ad is on screen.
-	static const uint64_t kHardFallbackSec = 2;
-	[self disarmRewardedCloseWatchdog];
-	dispatch_source_t timer = dispatch_source_create(DISPATCH_SOURCE_TYPE_TIMER, 0, 0, dispatch_get_main_queue());
-	if (timer == nil) {
-		return;
-	}
-	dispatch_source_set_timer(timer,
-		dispatch_time(DISPATCH_TIME_NOW, kWatchdogTimeoutSec * NSEC_PER_SEC),
-		DISPATCH_TIME_FOREVER,
-		1 * NSEC_PER_SEC);
-	__block AdMobIOSBridge *blockSelf = self;
-	dispatch_source_set_event_handler(timer, ^{
-		AdMobIOSBridge *strongSelf = blockSelf;
-		if (strongSelf == nil) {
-			return;
-		}
-		NSLog(@"[AdMobPlugin][iOS] rewarded close watchdog fired after %llus — attempting force dismiss of presented VC", (unsigned long long)kWatchdogTimeoutSec);
-		// Step 1: ask iOS to dismiss the presented VC. On a normally-stuck
-		// WebView-backed ad (the WebKit.WebContent: 113 case), this unsticks
-		// the SDK's dismiss flow and adDidDismissFullScreenContent fires
-		// naturally. The visual ad goes away and the Godot side resumes
-		// music at the right moment.
-		UIViewController *presenter = TopMostPresentedViewController();
-		if (presenter != nil) {
-			[presenter dismissViewControllerAnimated:YES completion:nil];
-		}
-		// Step 2: hard fallback. If the dismiss animation completed but the
-		// SDK's natural dismiss delegate still didn't fire (worst case: the
-		// SDK is fully wedged), force the close signal so Godot unblocks.
-		// The visual is already gone, so resuming music here is correct.
-		//
-		// v1.3.8.1 fix: store the dispatch_after block so the natural
-		// adDidDismissFullScreenContent can cancel it. Without this, the
-		// fallback would fire 2s after the natural close had already run
-		// and load_rewarded() had already replaced self.rewardedAd with a
-		// brand-new ad — leading to a spurious close signal on the new
-		// ad (placement=unknown) that the user perceived as "ad closed
-		// by itself".
-		//
-		// dispatch_block_create is required (not a plain ^{} literal)
-		// because dispatch_block_cancel only works on QOS-class-class
-		// blocks created via dispatch_block_create. DISPATCH_BLOCK_DETACHED
-		// means the block runs on the dispatch queue we pass to
-		// dispatch_after (no implicit inheritance).
-		__block AdMobIOSBridge *fallbackCaptured = strongSelf;
-		dispatch_block_t fallbackBlock = dispatch_block_create(DISPATCH_BLOCK_DETACHED, ^{
-			AdMobIOSBridge *fallbackSelf = fallbackCaptured;
-			if (fallbackSelf == nil) {
-				return;
-			}
-			NSLog(@"[AdMobPlugin][iOS] rewarded close hard fallback fired after %llus — forcing dismiss notification", (unsigned long long)kHardFallbackSec);
-			if (fallbackSelf.rewardedAd != nil) {
-				fallbackSelf.rewardedAd = nil;
-			}
-			[fallbackSelf disarmRewardedCloseWatchdog];
-			fallbackSelf.plugin->notify_rewarded_closed();
-		});
-		strongSelf.rewardedHardFallbackBlock = fallbackBlock;
-		dispatch_after(dispatch_time(DISPATCH_TIME_NOW, kHardFallbackSec * NSEC_PER_SEC),
-			dispatch_get_main_queue(), fallbackBlock);
-		// Disarm the main 30s timer immediately so the force-dismiss attempt
-		// and the hard fallback are the only remaining paths. If the natural
-		// dismiss fires, it will cancel the hard fallback (see
-		// adDidDismissFullScreenContent).
-		[strongSelf disarmRewardedCloseWatchdog];
-	});
-	dispatch_resume(timer);
-	_rewardedCloseWatchdog = timer;
-}
-
-- (void)disarmRewardedCloseWatchdog {
-	if (_rewardedCloseWatchdog != nil) {
-		dispatch_source_cancel(_rewardedCloseWatchdog);
-		_rewardedCloseWatchdog = nil;
-	}
-	// Also cancel any pending hard-fallback block. If it has already
-	// executed, dispatch_block_cancel is a no-op. If it hasn't, this
-	// prevents it from firing after the natural close has already
-	// completed and after load_rewarded() has replaced self.rewardedAd
-	// with a fresh ad.
-	if (_rewardedHardFallbackBlock != nil) {
-		dispatch_block_cancel(_rewardedHardFallbackBlock);
-		_rewardedHardFallbackBlock = nil;
-	}
 }
 
 - (void)applyTestDeviceConfiguration {
@@ -383,7 +279,6 @@ static UIViewController *TopMostPresentedViewController() {
 	if (@available(iOS 14, *)) {
 		self.plugin->set_tracking_authorization_status((int)ATTrackingManager.trackingAuthorizationStatus);
 	}
-	[self disarmRewardedCloseWatchdog];
 	dispatch_async(dispatch_get_main_queue(), ^{
 		[self applyTestDeviceConfiguration];
 		NSLog(@"[AdMobPlugin][iOS] load rewarded ad_unit=%@ test_device_count=%lu",
@@ -427,7 +322,6 @@ static UIViewController *TopMostPresentedViewController() {
 		return NO;
 	}
 
-	[self armRewardedCloseWatchdog];
 	dispatch_async(dispatch_get_main_queue(), ^{
 		// Re-resolve on main at the moment of present. The view hierarchy can
 		// change between call time and dispatch time (ATT, alert, scene swap).
@@ -632,7 +526,6 @@ static UIViewController *TopMostPresentedViewController() {
 		}
 		if (ad == self.rewardedAd) {
 			self.rewardedAd = nil;
-			[self disarmRewardedCloseWatchdog];
 			self.plugin->notify_rewarded_closed();
 		}
 	});
