@@ -10,7 +10,7 @@ Android ILR support is included via native `paid_event` callbacks (`OnPaidEventL
 ## Release
 
 - Latest packaged release: `v1.3.0`
-- Latest source-tree version: `v1.3.8` (in-progress, fix-only changes since `v1.3.6`)
+- Latest source-tree version: `v1.3.8.1` (in-progress, fix-only changes since `v1.3.6`)
 - GitHub release: `https://github.com/tntstupido/GodotAdMobPlugin/releases/tag/v1.3.0`
 - Direct download: `https://github.com/tntstupido/GodotAdMobPlugin/releases/download/v1.3.0/AdMobPlugin-v1.3.0-addons.zip`
 - The release zip contains:

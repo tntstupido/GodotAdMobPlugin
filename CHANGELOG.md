@@ -1,5 +1,26 @@
 # Changelog
 
+## v1.3.8.1 - 2026-06-10
+
+### Fixed
+- Fixed the v1.3.8 hard-fallback watchdog firing spuriously on the
+  *next* rewarded ad load. v1.3.8 stored the hard-fallback logic in a
+  `dispatch_after` block but had no way to cancel it. If the natural
+  `adDidDismissFullScreenContent` fired within the 2 s window (which
+  is the happy path), the user's tap on the ad was already processed,
+  but the hard fallback was still scheduled. By the time the fallback
+  ran, `load_rewarded()` had already replaced `self.rewardedAd` with a
+  brand-new ad, and the fallback's `if (rewardedAd != nil)` check
+  returned true for the *new* ad, causing a spurious
+  `notify_rewarded_closed` on it. The user perceived this as
+  "the next ad closed by itself".
+- v1.3.8.1 stores the fallback as a cancellable
+  `dispatch_block_create(DISPATCH_BLOCK_DETACHED, ...)` block and
+  cancels it in `disarmRewardedCloseWatchdog` (which is now also
+  called from the natural `adDidDismissFullScreenContent` path).
+  After the natural close fires, the hard-fallback block is cancelled
+  before it can run, so the new ad is never affected.
+
 ## v1.3.8 - 2026-06-10
 
 ### Fixed

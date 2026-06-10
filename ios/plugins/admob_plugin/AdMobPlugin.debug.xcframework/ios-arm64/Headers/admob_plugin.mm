@@ -74,6 +74,7 @@ static NSArray<NSString *> *ParseCSVDeviceIdentifiers(NSString *csv) {
 @property(nonatomic, assign) UMPDebugGeography umpDebugGeography;
 @property(nonatomic, copy) NSArray<NSString *> *umpDebugTestDeviceIdentifiers;
 @property(nonatomic, strong) dispatch_source_t rewardedCloseWatchdog;
+@property(nonatomic, copy) dispatch_block_t rewardedHardFallbackBlock;
 
 - (instancetype)initWithPlugin:(AdMobPlugin *)plugin;
 - (NSError *)initializeWithAppID:(NSString *)appID testMode:(BOOL)testMode;
@@ -217,26 +218,40 @@ static UIViewController *TopMostPresentedViewController() {
 		// SDK's natural dismiss delegate still didn't fire (worst case: the
 		// SDK is fully wedged), force the close signal so Godot unblocks.
 		// The visual is already gone, so resuming music here is correct.
-		dispatch_after(dispatch_time(DISPATCH_TIME_NOW, kHardFallbackSec * NSEC_PER_SEC),
-			dispatch_get_main_queue(), ^{
-			AdMobIOSBridge *fallbackSelf = blockSelf;
+		//
+		// v1.3.8.1 fix: store the dispatch_after block so the natural
+		// adDidDismissFullScreenContent can cancel it. Without this, the
+		// fallback would fire 2s after the natural close had already run
+		// and load_rewarded() had already replaced self.rewardedAd with a
+		// brand-new ad — leading to a spurious close signal on the new
+		// ad (placement=unknown) that the user perceived as "ad closed
+		// by itself".
+		//
+		// dispatch_block_create is required (not a plain ^{} literal)
+		// because dispatch_block_cancel only works on QOS-class-class
+		// blocks created via dispatch_block_create. DISPATCH_BLOCK_DETACHED
+		// means the block runs on the dispatch queue we pass to
+		// dispatch_after (no implicit inheritance).
+		__block AdMobIOSBridge *fallbackCaptured = strongSelf;
+		dispatch_block_t fallbackBlock = dispatch_block_create(DISPATCH_BLOCK_DETACHED, ^{
+			AdMobIOSBridge *fallbackSelf = fallbackCaptured;
 			if (fallbackSelf == nil) {
 				return;
 			}
-			// Only fire if the natural dismiss delegate hasn't already fired
-			// (in which case the disarm + close emission already happened
-			// through adDidDismissFullScreenContent and this is a no-op).
+			NSLog(@"[AdMobPlugin][iOS] rewarded close hard fallback fired after %llus — forcing dismiss notification", (unsigned long long)kHardFallbackSec);
 			if (fallbackSelf.rewardedAd != nil) {
-				NSLog(@"[AdMobPlugin][iOS] rewarded close hard fallback fired after %llus — forcing dismiss notification", (unsigned long long)kHardFallbackSec);
 				fallbackSelf.rewardedAd = nil;
-				[fallbackSelf disarmRewardedCloseWatchdog];
-				blockSelf = nil;
-				fallbackSelf.plugin->notify_rewarded_closed();
 			}
+			[fallbackSelf disarmRewardedCloseWatchdog];
+			fallbackSelf.plugin->notify_rewarded_closed();
 		});
+		strongSelf.rewardedHardFallbackBlock = fallbackBlock;
+		dispatch_after(dispatch_time(DISPATCH_TIME_NOW, kHardFallbackSec * NSEC_PER_SEC),
+			dispatch_get_main_queue(), fallbackBlock);
 		// Disarm the main 30s timer immediately so the force-dismiss attempt
 		// and the hard fallback are the only remaining paths. If the natural
-		// dismiss fires, it will disarm again (no-op).
+		// dismiss fires, it will cancel the hard fallback (see
+		// adDidDismissFullScreenContent).
 		[strongSelf disarmRewardedCloseWatchdog];
 	});
 	dispatch_resume(timer);
@@ -247,6 +262,15 @@ static UIViewController *TopMostPresentedViewController() {
 	if (_rewardedCloseWatchdog != nil) {
 		dispatch_source_cancel(_rewardedCloseWatchdog);
 		_rewardedCloseWatchdog = nil;
+	}
+	// Also cancel any pending hard-fallback block. If it has already
+	// executed, dispatch_block_cancel is a no-op. If it hasn't, this
+	// prevents it from firing after the natural close has already
+	// completed and after load_rewarded() has replaced self.rewardedAd
+	// with a fresh ad.
+	if (_rewardedHardFallbackBlock != nil) {
+		dispatch_block_cancel(_rewardedHardFallbackBlock);
+		_rewardedHardFallbackBlock = nil;
 	}
 }
 
