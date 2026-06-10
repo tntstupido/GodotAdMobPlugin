@@ -98,6 +98,47 @@ static NSArray<NSString *> *ParseCSVDeviceIdentifiers(NSString *csv) {
 
 @end
 
+// Returns the key window from the active foreground UIWindowScene. The
+// AdMob SDK uses the window's scene to size full-screen ads correctly on
+// iPad multi-window (see the "Support multiple windows on iPad" guide).
+// Returns nil if no foreground window is available.
+static UIWindow *ActiveKeyWindow() {
+	for (UIScene *scene in UIApplication.sharedApplication.connectedScenes) {
+		if (![scene isKindOfClass:[UIWindowScene class]]) {
+			continue;
+		}
+		UIWindowScene *windowScene = (UIWindowScene *)scene;
+		if (windowScene.activationState != UISceneActivationStateForegroundActive &&
+			windowScene.activationState != UISceneActivationStateForegroundInactive) {
+			continue;
+		}
+		for (UIWindow *window in windowScene.windows) {
+			if (window.isKeyWindow) {
+				return window;
+			}
+		}
+	}
+
+	// Fallback: any key window across any scene.
+	for (UIScene *scene in UIApplication.sharedApplication.connectedScenes) {
+		if (![scene isKindOfClass:[UIWindowScene class]]) {
+			continue;
+		}
+		UIWindowScene *windowScene = (UIWindowScene *)scene;
+		for (UIWindow *window in windowScene.windows) {
+			if (window.isKeyWindow) {
+				return window;
+			}
+		}
+	}
+
+	id<UIApplicationDelegate> appDelegate = UIApplication.sharedApplication.delegate;
+	if ([appDelegate respondsToSelector:@selector(window)]) {
+		return [appDelegate window];
+	}
+	return nil;
+}
+
 // Returns the key window's rootViewController. This is what the Google
 // Mobile Ads SDK expects to receive from `presentFromRootViewController:`:
 // the parent VC of the presented ad. Passing the AdMob SDK's own already-
@@ -106,16 +147,9 @@ static NSArray<NSString *> *ParseCSVDeviceIdentifiers(NSString *csv) {
 // system error in WebView-backed creatives. Keep this simple: return the
 // app's own root VC.
 static UIViewController *RootViewController() {
-	for (UIScene *scene in UIApplication.sharedApplication.connectedScenes) {
-		if (![scene isKindOfClass:[UIWindowScene class]]) {
-			continue;
-		}
-		UIWindowScene *windowScene = (UIWindowScene *)scene;
-		for (UIWindow *window in windowScene.windows) {
-			if (window.isKeyWindow && window.rootViewController != nil) {
-				return window.rootViewController;
-			}
-		}
+	UIWindow *keyWindow = ActiveKeyWindow();
+	if (keyWindow != nil && keyWindow.rootViewController != nil) {
+		return keyWindow.rootViewController;
 	}
 
 	id<UIApplicationDelegate> appDelegate = UIApplication.sharedApplication.delegate;
@@ -124,6 +158,15 @@ static UIViewController *RootViewController() {
 		return delegateWindow.rootViewController;
 	}
 	return nil;
+}
+
+// Returns the UIWindowScene that should be associated with a GADRequest.
+// Required for multi-scene iPad apps per the AdMob iOS "Support multiple
+// windows" guide; strongly advised for all apps that enable scene
+// support, regardless of format.
+static UIWindowScene *ActiveWindowScene() {
+	UIWindow *keyWindow = ActiveKeyWindow();
+	return keyWindow != nil ? keyWindow.windowScene : nil;
 }
 
 @implementation AdMobIOSBridge
@@ -202,8 +245,16 @@ static UIViewController *RootViewController() {
 		NSLog(@"[AdMobPlugin][iOS] load interstitial ad_unit=%@ test_device_count=%lu",
 			SafeNSString(adUnitID),
 			(unsigned long)self.testDeviceIdentifiers.count);
+		GADRequest *request = [GADRequest request];
+		// Per the AdMob iOS multi-scene guide, setting the scene is strongly
+		// advised for any app with scene support enabled. Omitting it causes
+		// test-mode errors and inconsistent full-screen ad sizing in prod.
+		UIWindowScene *scene = ActiveWindowScene();
+		if (scene != nil) {
+			request.scene = scene;
+		}
 		[GADInterstitialAd loadWithAdUnitID:adUnitID
-									request:[GADRequest request]
+									request:request
 						  completionHandler:^(GADInterstitialAd * _Nullable ad, NSError * _Nullable error) {
 			if (error != nil || ad == nil) {
 				self.interstitialAd = nil;
@@ -238,6 +289,27 @@ static UIViewController *RootViewController() {
 		return NO;
 	}
 
+	// Doc-mandated pre-check: verify the ad can be presented from the
+	// current VC + window before calling presentFromRootViewController.
+	// This catches expired ads and scene/size mismatches early and
+	// prevents the SDK from silently failing or self-dismissing.
+	NSError *presentError = nil;
+	BOOL canPresent = [self.interstitialAd canPresentFromRootViewController:viewController error:&presentError];
+	if (!canPresent) {
+		int errorCode = presentError != nil ? (int)presentError.code : -2;
+		String errorDomain = NSStringToString(presentError != nil ? presentError.domain : nil);
+		String errorMessage = NSStringToString(presentError != nil ? presentError.localizedDescription : @"interstitial cannot be presented from current view controller");
+		NSString *logMessage = presentError != nil ? presentError.localizedDescription : @"interstitial cannot be presented from current view controller";
+		NSLog(@"[AdMobPlugin][iOS] interstitial can_present check failed code=%d domain=%@ message=%@",
+			errorCode,
+			presentError != nil ? SafeNSString(presentError.domain) : @"",
+			SafeNSString(logMessage));
+		self.interstitialAd = nil;
+		self.plugin->notify_interstitial_show_failed();
+		self.plugin->notify_interstitial_show_failed_detailed(errorCode, errorDomain, errorMessage);
+		return NO;
+	}
+
 	dispatch_async(dispatch_get_main_queue(), ^{
 		[self.interstitialAd presentFromRootViewController:viewController];
 	});
@@ -253,8 +325,16 @@ static UIViewController *RootViewController() {
 		NSLog(@"[AdMobPlugin][iOS] load rewarded ad_unit=%@ test_device_count=%lu",
 			SafeNSString(adUnitID),
 			(unsigned long)self.testDeviceIdentifiers.count);
+		GADRequest *request = [GADRequest request];
+		// Per the AdMob iOS multi-scene guide, setting the scene is strongly
+		// advised for any app with scene support enabled. Omitting it causes
+		// test-mode errors and inconsistent full-screen ad sizing in prod.
+		UIWindowScene *scene = ActiveWindowScene();
+		if (scene != nil) {
+			request.scene = scene;
+		}
 		[GADRewardedAd loadWithAdUnitID:adUnitID
-								request:[GADRequest request]
+								request:request
 					  completionHandler:^(GADRewardedAd * _Nullable ad, NSError * _Nullable error) {
 			if (error != nil || ad == nil) {
 				self.rewardedAd = nil;
@@ -286,6 +366,27 @@ static UIViewController *RootViewController() {
 		NSLog(@"[AdMobPlugin][iOS] rewarded show failed reason=%@", reason);
 		self.plugin->notify_rewarded_show_failed();
 		self.plugin->notify_rewarded_show_failed_detailed(-1, String("show_rewarded"), NSStringToString(reason));
+		return NO;
+	}
+
+	// Doc-mandated pre-check: verify the ad can be presented from the
+	// current VC + window before calling presentFromRootViewController.
+	// This catches expired ads and scene/size mismatches early and
+	// prevents the SDK from silently failing or self-dismissing.
+	NSError *presentError = nil;
+	BOOL canPresent = [self.rewardedAd canPresentFromRootViewController:viewController error:&presentError];
+	if (!canPresent) {
+		int errorCode = presentError != nil ? (int)presentError.code : -2;
+		String errorDomain = NSStringToString(presentError != nil ? presentError.domain : nil);
+		String errorMessage = NSStringToString(presentError != nil ? presentError.localizedDescription : @"rewarded cannot be presented from current view controller");
+		NSString *logMessage = presentError != nil ? presentError.localizedDescription : @"rewarded cannot be presented from current view controller";
+		NSLog(@"[AdMobPlugin][iOS] rewarded can_present check failed code=%d domain=%@ message=%@",
+			errorCode,
+			presentError != nil ? SafeNSString(presentError.domain) : @"",
+			SafeNSString(logMessage));
+		self.rewardedAd = nil;
+		self.plugin->notify_rewarded_show_failed();
+		self.plugin->notify_rewarded_show_failed_detailed(errorCode, errorDomain, errorMessage);
 		return NO;
 	}
 
@@ -476,6 +577,36 @@ static UIViewController *RootViewController() {
 				self.plugin->notify_privacy_options_form_finished();
 			}];
 	});
+}
+
+- (void)adDidRecordImpression:(id<GADFullScreenPresentingAd>)ad {
+	// GADFullScreenContentDelegate method. Fires when the SDK records an
+	// impression for the full-screen ad. Logged for parity with the
+	// official AdMob rewarded sample.
+	NSLog(@"[AdMobPlugin][iOS] adDidRecordImpression");
+}
+
+- (void)adDidRecordClick:(id<GADFullScreenPresentingAd>)ad {
+	// GADFullScreenContentDelegate method. Fires when the user clicks the
+	// full-screen ad. Logged for parity with the official AdMob rewarded
+	// sample.
+	NSLog(@"[AdMobPlugin][iOS] adDidRecordClick");
+}
+
+- (void)adWillPresentFullScreenContent:(id<GADFullScreenPresentingAd>)ad {
+	// GADFullScreenContentDelegate method. Fires immediately before the
+	// full-screen ad UI is presented. The doc suggests pausing
+	// animations or time-sensitive UI work here, but for a Godot game
+	// the engine already handles its own pause state via the
+	// rewarded_loaded / rewarded_closed signal flow.
+	NSLog(@"[AdMobPlugin][iOS] adWillPresentFullScreenContent");
+}
+
+- (void)adWillDismissFullScreenContent:(id<GADFullScreenPresentingAd>)ad {
+	// GADFullScreenContentDelegate method. Fires immediately before the
+	// full-screen ad UI is dismissed (e.g. user tapped close). Logged
+	// for parity with the official AdMob rewarded sample.
+	NSLog(@"[AdMobPlugin][iOS] adWillDismissFullScreenContent");
 }
 
 - (void)adDidDismissFullScreenContent:(id<GADFullScreenPresentingAd>)ad {

@@ -1,5 +1,47 @@
 # Changelog
 
+## v1.3.10 - 2026-06-10
+
+### Added (AdMob SDK doc-compliance pass)
+- **`request.scene` is now set on every `GADRequest`** for both
+  interstitial and rewarded ad loads. Per the AdMob iOS
+  "Support multiple windows on iPad" guide, scene is strongly
+  advised for every format once the app has scene support enabled.
+  Setting it from the active foreground key window via a new
+  `ActiveWindowScene()` helper.
+- **`canPresentFromRootViewController:error:` pre-check** before
+  presenting. Called in both `showInterstitial` and `showRewarded`.
+  Catches expired ads (1-hour TTL) and scene/size mismatches early
+  and emits `*_show_failed` + `*_show_failed_detailed` with the
+  SDK's own error code/message instead of letting `presentFrom...`
+  silently fail or self-dismiss. This is the recommended pre-check
+  in the GADRewardedAd framework reference.
+- **Four missing `GADFullScreenContentDelegate` methods**:
+  `adDidRecordImpression:`, `adDidRecordClick:`,
+  `adWillPresentFullScreenContent:`,
+  `adWillDismissFullScreenContent:`. Previously only
+  `adDidDismissFullScreenContent:` and
+  `didFailToPresentFullScreenContentWithError:` were implemented.
+  The official AdMob rewarded sample implements all six; the bridge
+  now matches. All four are log-only (the Godot game already pauses
+  itself via the existing `rewarded_loaded` / `rewarded_closed`
+  signal flow).
+
+### Refactored
+- Extracted the key-window lookup into a shared `ActiveKeyWindow()`
+  helper. `RootViewController()` and `ActiveWindowScene()` both
+  build on it. The lookup now prefers the active foreground
+  `UIWindowScene` (matches what the AdMob SDK's "active scene" is)
+  and falls back to any key window across all scenes before finally
+  going to the app delegate's window.
+
+### Why this version
+The user flagged the freeze + "2nd ad self-closes" symptom right
+after the v1.3.9.1 fix and asked us to check our implementation
+against the official AdMob SDK documentation. v1.3.9.1 followed the
+doc's "happy path" pattern correctly, but it was missing three
+doc-recommended elements. v1.3.10 fills all three.
+
 ## v1.3.9.1 - 2026-06-10
 
 ### Reverted
