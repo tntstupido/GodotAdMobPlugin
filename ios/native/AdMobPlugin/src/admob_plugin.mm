@@ -175,7 +175,19 @@ static UIViewController *TopMostPresentedViewController() {
 }
 
 - (void)armRewardedCloseWatchdog {
-	static const uint64_t kWatchdogTimeoutSec = 60;
+	// Tuned down from 60s (v1.3.7) to 30s (v1.3.8). The 60s value was chosen
+	// defensively; in practice a stuck AdMob rewarded ad is unrecoverable
+	// much sooner than that and the user is stuck waiting. 30s is still a
+	// long wait but the dismissal animation (below) means the visual exits
+	// immediately on the watchdog firing, so the user can interact with the
+	// underlying scene right away.
+	static const uint64_t kWatchdogTimeoutSec = 30;
+	// Hard-fallback grace period after the force-dismiss. If the SDK's
+	// adDidDismissFullScreenContent still doesn't fire after this window,
+	// we force-emit the close signal so the Godot side unblocks. The visual
+	// ad is already gone by now (dismiss animation completed), so the music
+	// resume happens at a moment when no ad is on screen.
+	static const uint64_t kHardFallbackSec = 2;
 	[self disarmRewardedCloseWatchdog];
 	dispatch_source_t timer = dispatch_source_create(DISPATCH_SOURCE_TYPE_TIMER, 0, 0, dispatch_get_main_queue());
 	if (timer == nil) {
@@ -191,13 +203,41 @@ static UIViewController *TopMostPresentedViewController() {
 		if (strongSelf == nil) {
 			return;
 		}
-		NSLog(@"[AdMobPlugin][iOS] rewarded close watchdog fired after %llus — forcing dismiss notification", (unsigned long long)kWatchdogTimeoutSec);
-		if (strongSelf.rewardedAd != nil) {
-			strongSelf.rewardedAd = nil;
+		NSLog(@"[AdMobPlugin][iOS] rewarded close watchdog fired after %llus — attempting force dismiss of presented VC", (unsigned long long)kWatchdogTimeoutSec);
+		// Step 1: ask iOS to dismiss the presented VC. On a normally-stuck
+		// WebView-backed ad (the WebKit.WebContent: 113 case), this unsticks
+		// the SDK's dismiss flow and adDidDismissFullScreenContent fires
+		// naturally. The visual ad goes away and the Godot side resumes
+		// music at the right moment.
+		UIViewController *presenter = TopMostPresentedViewController();
+		if (presenter != nil) {
+			[presenter dismissViewControllerAnimated:YES completion:nil];
 		}
+		// Step 2: hard fallback. If the dismiss animation completed but the
+		// SDK's natural dismiss delegate still didn't fire (worst case: the
+		// SDK is fully wedged), force the close signal so Godot unblocks.
+		// The visual is already gone, so resuming music here is correct.
+		dispatch_after(dispatch_time(DISPATCH_TIME_NOW, kHardFallbackSec * NSEC_PER_SEC),
+			dispatch_get_main_queue(), ^{
+			AdMobIOSBridge *fallbackSelf = blockSelf;
+			if (fallbackSelf == nil) {
+				return;
+			}
+			// Only fire if the natural dismiss delegate hasn't already fired
+			// (in which case the disarm + close emission already happened
+			// through adDidDismissFullScreenContent and this is a no-op).
+			if (fallbackSelf.rewardedAd != nil) {
+				NSLog(@"[AdMobPlugin][iOS] rewarded close hard fallback fired after %llus — forcing dismiss notification", (unsigned long long)kHardFallbackSec);
+				fallbackSelf.rewardedAd = nil;
+				[fallbackSelf disarmRewardedCloseWatchdog];
+				blockSelf = nil;
+				fallbackSelf.plugin->notify_rewarded_closed();
+			}
+		});
+		// Disarm the main 30s timer immediately so the force-dismiss attempt
+		// and the hard fallback are the only remaining paths. If the natural
+		// dismiss fires, it will disarm again (no-op).
 		[strongSelf disarmRewardedCloseWatchdog];
-		blockSelf = nil;
-		strongSelf.plugin->notify_rewarded_closed();
 	});
 	dispatch_resume(timer);
 	_rewardedCloseWatchdog = timer;

@@ -1,5 +1,29 @@
 # Changelog
 
+## v1.3.8 - 2026-06-10
+
+### Fixed
+- Refined the iOS rewarded-ad close watchdog (v1.3.7) to actually dismiss
+  the presented view controller instead of only emitting the close signal.
+  - The v1.3.7 watchdog fired `notify_rewarded_closed` directly, which made
+    the Godot side resume the music while the visual ad was still on screen.
+    For the user this looked like "music plays over the ad".
+  - v1.3.8 first asks iOS to dismiss the presented VC
+    (`dismissViewControllerAnimated:YES`). On the WebKit-backed ad freeze
+    (the iOS `WebKit.WebContent: 113` system error that prevents the
+    WebView from round-tripping tap events to the AdMob SDK), this unstucks
+    the SDK's natural dismiss flow and `adDidDismissFullScreenContent`
+    fires correctly. The visual ad goes away, and the existing
+    Godot-side close handler runs at the right moment.
+  - Hard fallback: if the natural dismiss delegate still doesn't fire
+    within 2 s after the force-dismiss, the watchdog force-emits the
+    close signal. The visual is already gone by then, so the music
+    resume happens with no ad on screen.
+  - Watchdog timeout reduced from 60 s to 30 s. The 60 s value was
+    defensive; in practice a stuck AdMob rewarded ad is unrecoverable
+    sooner, and with the force-dismiss approach the user gets a clean
+    visual exit at 30 s instead of a forced one.
+
 ## v1.3.7 - 2026-06-10
 
 ### Fixed
