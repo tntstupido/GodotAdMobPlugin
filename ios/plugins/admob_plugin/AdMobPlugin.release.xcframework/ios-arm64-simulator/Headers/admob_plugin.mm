@@ -98,28 +98,23 @@ static NSArray<NSString *> *ParseCSVDeviceIdentifiers(NSString *csv) {
 
 @end
 
-// Returns the key window from the active foreground UIWindowScene. The
-// AdMob SDK uses the window's scene to size full-screen ads correctly on
-// iPad multi-window (see the "Support multiple windows on iPad" guide).
-// Returns nil if no foreground window is available.
+// Returns the key window from any scene, preferring the app's own key
+// window. The AdMob SDK uses the window's scene to size full-screen ads
+// correctly on iPad multi-window (see the "Support multiple windows on
+// iPad" guide). Returns nil if no foreground window is available.
+//
+// v1.3.11 change: the v1.3.10 version of this helper filtered out scenes
+// whose activationState was not ForegroundActive/Inactive. That filter
+// caused chained rewarded pods to lose their iOS WebKit XPC service
+// connection (com.apple.WebKit.WebContent: 113) when the app's own
+// scene briefly transitioned to a Background activation state during
+// pod transitions — the helper returned the SDK's ad-presentation
+// window instead of the app's, and the WebView then connected to the
+// wrong scene's XPC service. Reverted to v1.3.9.1's behavior: accept
+// any key window with a rootViewController, regardless of activation
+// state. The first non-key window check below is a defensive
+// improvement over the bare v1.3.0 / v1.3.9.1 implementation.
 static UIWindow *ActiveKeyWindow() {
-	for (UIScene *scene in UIApplication.sharedApplication.connectedScenes) {
-		if (![scene isKindOfClass:[UIWindowScene class]]) {
-			continue;
-		}
-		UIWindowScene *windowScene = (UIWindowScene *)scene;
-		if (windowScene.activationState != UISceneActivationStateForegroundActive &&
-			windowScene.activationState != UISceneActivationStateForegroundInactive) {
-			continue;
-		}
-		for (UIWindow *window in windowScene.windows) {
-			if (window.isKeyWindow) {
-				return window;
-			}
-		}
-	}
-
-	// Fallback: any key window across any scene.
 	for (UIScene *scene in UIApplication.sharedApplication.connectedScenes) {
 		if (![scene isKindOfClass:[UIWindowScene class]]) {
 			continue;

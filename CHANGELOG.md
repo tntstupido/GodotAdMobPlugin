@@ -1,5 +1,65 @@
 # Changelog
 
+## v1.3.11 - 2026-06-11
+
+### Fixed (regression introduced in v1.3.10)
+- **iOS rewarded-ad freeze on chained pods** caused by v1.3.10's
+  `ActiveKeyWindow()` foreground filter. The v1.3.10 helper required
+  scenes to be in `UISceneActivationStateForegroundActive` or
+  `ForegroundInactive` to be considered. During chained rewarded
+  pod transitions, the app's own `UIWindowScene` briefly transitions
+  through a non-foreground activation state while the AdMob SDK
+  swaps its ad-presentation scene. The new helper returned `nil`
+  for the app's scene during that transition and fell through to
+  `appDelegate.window`, which the SDK then used as the presenter.
+  The next ad in the pod was presented from inside the SDK's own
+  modal (against the iOS view-hierarchy contract), and the WebView
+  lost its `com.apple.WebKit.WebContent: 113` XPC service connection.
+  User-visible symptom: the second ad of a chained rewarded pod
+  froze on a still image with the music stopped, and the close X
+  only appeared after a long delay. v1.3.10 re-introduced this
+  filter thinking it was a defensive improvement for the AdMob
+  "Support multiple windows on iPad" guide, but for single-window
+  iPhone apps the filter is too strict for chained rewarded pod
+  scene transitions.
+- Fix: revert `ActiveKeyWindow()` to v1.3.9.1's behavior — iterate
+  all connected `UIWindowScene`s and return the first key window
+  with a `rootViewController`, regardless of activation state.
+  `ActiveWindowScene()` (used for `request.scene` at load time)
+  still calls `ActiveKeyWindow()` to resolve the window first, so
+  `request.scene` is unchanged in behavior.
+- Verified on iPhone (A11, iOS 16.7.16) with closed_alpha 0.5.2 +
+  real (non-test) AdMob mediation-served chained rewarded pods
+  (2 ads each). Two ad attempts in one session, both clean:
+  ad 1 lifecycle ~17s, ad 2 lifecycle ~16.6s, no freeze.
+- Project repo: `monsterchromatic`. Bisect trail:
+  - closed_alpha + v1.3.9.1 plugin = clean
+  - closed_alpha + v1.3.10 plugin = freeze (regression confirmed)
+  - closed_alpha + v1.3.10 with `ActiveKeyWindow()` body reverted
+    to v1.3.9.1 = clean (regression isolated to this helper)
+
+### Kept from v1.3.10 (verified not the cause)
+- `request.scene` setting on `GADRequest` for both interstitial and
+  rewarded ad loads. Still in use; behaves correctly when
+  `ActiveWindowScene()` resolves via the v1.3.9.1 `ActiveKeyWindow()`.
+- `canPresentFromRootViewController:error:` pre-check in both
+  `showInterstitial` and `showRewarded`. Still in use; the SDK's
+  pre-check passes in the log and is not blocking the ad.
+- Four `GADFullScreenContentDelegate` log-only methods
+  (`adDidRecordImpression:`, `adDidRecordClick:`,
+  `adWillPresentFullScreenContent:`, `adWillDismissFullScreenContent:`).
+  Still in use.
+
+### Plugin source coordination
+- Source repo: `/Users/mladen/Documents/Plugins/GodotAdMobPlugin`
+- Project repo: `/Users/mladen/Documents/GodotProjects/monsterchromatic`
+- Rebuilt debug + release xcframeworks (iphoneos + iphonesimulator
+  slices) against the 4.5.1-stable Godot headers.
+- Synced rebuilt `AdMobPlugin.{debug,release}.xcframework` into
+  `monsterchromatic/ios/plugins/admob_plugin/`.
+- Synced same into the export's bundled copy at
+  `die_laughing_export/dielaughing/dylibs/ios/plugins/admob_plugin/`.
+
 ## v1.3.10 - 2026-06-10
 
 ### Added (AdMob SDK doc-compliance pass)
