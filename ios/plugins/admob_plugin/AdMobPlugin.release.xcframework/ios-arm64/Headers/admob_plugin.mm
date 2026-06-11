@@ -29,6 +29,7 @@ static const char *CONSENT_ERROR_SIGNAL = "consent_error";
 static const char *PRIVACY_OPTIONS_FORM_SHOWN_SIGNAL = "privacy_options_form_shown";
 static const char *PRIVACY_OPTIONS_FORM_DISMISSED_SIGNAL = "privacy_options_form_dismissed";
 static const char *PRIVACY_OPTIONS_FORM_FINISHED_SIGNAL = "privacy_options_form_finished";
+static const char *AD_INSPECTOR_CLOSED_SIGNAL = "ad_inspector_closed";
 
 static NSString *StringToNSString(const String &value) {
 	CharString utf8 = value.utf8();
@@ -95,6 +96,7 @@ static NSArray<NSString *> *ParseCSVDeviceIdentifiers(NSString *csv) {
 - (int)privacyOptionsRequirementStatus;
 - (BOOL)isPrivacyOptionsFormAvailable;
 - (void)showPrivacyOptionsForm;
+- (void)openAdInspector;
 
 @end
 
@@ -574,6 +576,23 @@ static UIWindowScene *ActiveWindowScene() {
 	});
 }
 
+- (void)openAdInspector {
+	dispatch_async(dispatch_get_main_queue(), ^{
+		UIViewController *viewController = RootViewController();
+		if (viewController == nil) {
+			self.plugin->notify_ad_inspector_closed("Ad Inspector requires a root view controller");
+			return;
+		}
+		NSLog(@"[AdMobPlugin][iOS] presenting Ad Inspector");
+		[GADMobileAds.sharedInstance presentAdInspectorFromViewController:viewController
+			completionHandler:^(NSError *_Nullable error) {
+				NSString *message = error != nil ? error.localizedDescription : @"closed";
+				NSLog(@"[AdMobPlugin][iOS] Ad Inspector closed message=%@", SafeNSString(message));
+				self.plugin->notify_ad_inspector_closed(NSStringToString(message));
+			}];
+	});
+}
+
 - (void)adDidRecordImpression:(id<GADFullScreenPresentingAd>)ad {
 	// GADFullScreenContentDelegate method. Fires when the SDK records an
 	// impression for the full-screen ad. Logged for parity with the
@@ -693,6 +712,8 @@ void AdMobPlugin::_bind_methods() {
 	ClassDB::bind_method("isPrivacyOptionsFormAvailable", &AdMobPlugin::isPrivacyOptionsFormAvailable);
 	ClassDB::bind_method("show_privacy_options_form", &AdMobPlugin::show_privacy_options_form);
 	ClassDB::bind_method("showPrivacyOptionsForm", &AdMobPlugin::showPrivacyOptionsForm);
+	ClassDB::bind_method("open_ad_inspector", &AdMobPlugin::open_ad_inspector);
+	ClassDB::bind_method("openAdInspector", &AdMobPlugin::openAdInspector);
 
 	ADD_SIGNAL(MethodInfo(INITIALIZED_SIGNAL));
 	ADD_SIGNAL(MethodInfo(INTERSTITIAL_LOADED_SIGNAL));
@@ -730,6 +751,7 @@ void AdMobPlugin::_bind_methods() {
 	ADD_SIGNAL(MethodInfo(PRIVACY_OPTIONS_FORM_SHOWN_SIGNAL));
 	ADD_SIGNAL(MethodInfo(PRIVACY_OPTIONS_FORM_DISMISSED_SIGNAL));
 	ADD_SIGNAL(MethodInfo(PRIVACY_OPTIONS_FORM_FINISHED_SIGNAL));
+	ADD_SIGNAL(MethodInfo(AD_INSPECTOR_CLOSED_SIGNAL, PropertyInfo(Variant::STRING, "message")));
 }
 
 AdMobPlugin *AdMobPlugin::get_singleton() {
@@ -920,6 +942,14 @@ void AdMobPlugin::showPrivacyOptionsForm() {
 	show_privacy_options_form();
 }
 
+void AdMobPlugin::open_ad_inspector() {
+	[bridge openAdInspector];
+}
+
+void AdMobPlugin::openAdInspector() {
+	open_ad_inspector();
+}
+
 void AdMobPlugin::notify_initialized() {
 	initialized = true;
 	emit_signal(INITIALIZED_SIGNAL);
@@ -1019,6 +1049,10 @@ void AdMobPlugin::notify_privacy_options_form_dismissed() {
 
 void AdMobPlugin::notify_privacy_options_form_finished() {
 	emit_signal(PRIVACY_OPTIONS_FORM_FINISHED_SIGNAL);
+}
+
+void AdMobPlugin::notify_ad_inspector_closed(const String &message) {
+	emit_signal(AD_INSPECTOR_CLOSED_SIGNAL, message);
 }
 
 void AdMobPlugin::set_consent_state(bool info_ready, bool ads_allowed, bool form_available, int new_consent_status, int new_privacy_options_requirement_status) {

@@ -10,7 +10,7 @@ Android ILR support is included via native `paid_event` callbacks (`OnPaidEventL
 ## Release
 
 - Latest packaged release: `v1.3.0`
-- Latest source-tree version: `v1.3.11` (in-progress, fix-only changes since `v1.3.6`)
+- Latest source-tree version: `v1.3.12` (in-progress changes since `v1.3.6`)
 - GitHub release: `https://github.com/tntstupido/GodotAdMobPlugin/releases/tag/v1.3.0`
 - Direct download: `https://github.com/tntstupido/GodotAdMobPlugin/releases/download/v1.3.0/AdMobPlugin-v1.3.0-addons.zip`
 - The release zip contains:
@@ -78,6 +78,7 @@ AdMobPlugin/
   - explicit UMP privacy-options form helper exposed to GDScript
   - ATT helpers exposed to GDScript
   - under-age consent request tagging helper exposed to GDScript (`set_tag_for_under_age_of_consent`)
+  - Ad Inspector API-call helper exposed to GDScript (`open_ad_inspector`)
   - ATT prompt is manual-only (not auto-triggered by ad loading)
   - consuming projects may keep this as plugin capability only; a game does not need to expose a manual privacy-options button if its validated UX is fully covered by automatic UMP/ATT flow
 - Native iOS source and build workflow remain under `ios/native/AdMobPlugin/`.

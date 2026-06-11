@@ -82,6 +82,8 @@ public:
 	bool isPrivacyOptionsFormAvailable() const;
 	void show_privacy_options_form();
 	void showPrivacyOptionsForm();
+	void open_ad_inspector();
+	void openAdInspector();
 
 	void notify_initialized();
 	void notify_interstitial_loaded();
@@ -106,6 +108,7 @@ public:
 	void notify_privacy_options_form_shown();
 	void notify_privacy_options_form_dismissed();
 	void notify_privacy_options_form_finished();
+	void notify_ad_inspector_closed(const String &message);
 	void set_consent_state(bool info_ready, bool ads_allowed, bool form_available, int new_consent_status, int new_privacy_options_requirement_status);
 };
 

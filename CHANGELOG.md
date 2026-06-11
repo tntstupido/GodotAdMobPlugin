@@ -1,5 +1,17 @@
 # Changelog
 
+## v1.3.12 - 2026-06-11
+
+### Added
+- Added the iOS Ad Inspector API-call path documented by Google:
+  `open_ad_inspector` / `openAdInspector` presents
+  `GADMobileAds.sharedInstance` Ad Inspector from the app root view
+  controller and emits `ad_inspector_closed(message)` when it closes.
+- This completes the existing Godot `AdManager.open_ad_inspector()`
+  bridge on iOS, allowing direct verification of test-device
+  recognition and ad-request details without relying on an AdMob
+  console gesture.
+
 ## v1.3.11 - 2026-06-11
 
 ### Fixed (regression introduced in v1.3.10)
@@ -29,7 +41,7 @@
   still calls `ActiveKeyWindow()` to resolve the window first, so
   `request.scene` is unchanged in behavior.
 - Verified on iPhone (A11, iOS 16.7.16) with closed_alpha 0.5.2 +
-  real (non-test) AdMob mediation-served chained rewarded pods
+  real (non-test) production-served chained rewarded pods
   (2 ads each). Two ad attempts in one session, both clean:
   ad 1 lifecycle ~17s, ad 2 lifecycle ~16.6s, no freeze.
 - Project repo: `monsterchromatic`. Bisect trail:
